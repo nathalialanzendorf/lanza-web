@@ -55,8 +55,8 @@ Resumo:
 
 | Projeto Vercel | Repositório | URL |
 |----------------|-------------|-----|
-| `lanza-web` | [lanza-web](https://github.com/nathalialanzendorf/lanza-web) | https://lanza-web-ten.vercel.app |
-| `lanza-locacoes` | [lanza-locacoes](https://github.com/nathalialanzendorf/lanza-locacoes) | https://lanza-locacoes.vercel.app |
+| `lanza-web` | [lanza-web](https://github.com/nathalialanzendorf/lanza-web) | https://lanzalocacoes.vercel.app |
+| `lanza-locacoes` (API) | [lanza-locacoes](https://github.com/nathalialanzendorf/lanza-locacoes) | https://api.lanzalocacoes.vercel.app |
 
 O frontend aponta para a API via `.env.production` (`VITE_API_BASE_URL`). A API aceita CORS do domínio do painel e reporta estado do PostgreSQL em `/health`.
 
