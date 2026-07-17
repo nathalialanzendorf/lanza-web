@@ -1,4 +1,5 @@
 import type { ApiError } from "./types";
+import { getStoredToken } from "./authClient";
 
 const STORAGE_KEY = "lanza_api_key";
 
@@ -73,6 +74,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   const apiKey = getStoredApiKey().trim();
   if (apiKey) headers["X-API-Key"] = apiKey;
+
+  const token = getStoredToken().trim();
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   const init: RequestInit = {
     method: options.method ?? "GET",

@@ -71,4 +71,14 @@ O frontend aponta para a API via `.env.production` (`VITE_API_BASE_URL`). A API 
 | `/despesas` | `GET /api/despesas` |
 | `/locacoes` | `GET /api/locacoes` |
 
+## Autenticação (login/senha)
+
+O painel suporta contas de utilizador com JWT:
+
+1. Defina `LANZA_JWT_SECRET` no servidor API (string aleatória longa).
+2. Aceda a `/registro` para criar a **primeira conta** (bootstrap) ou defina `LANZA_ALLOW_REGISTER=true` para registo público.
+3. Faça login em `/login` — o token fica em `localStorage` e é enviado como `Authorization: Bearer …`.
+
+Rotas da API exigem JWT (ou `X-API-Key` legado) quando `LANZA_JWT_SECRET` ou `LANZA_API_KEY` estão activas.
+
 A estrutura em `src/api/` está preparada para expandir com os demais grupos da OpenAPI (sync, relatórios, FIPE, etc.).

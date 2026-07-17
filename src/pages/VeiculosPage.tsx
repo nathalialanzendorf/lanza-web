@@ -1,79 +1,37 @@
-import { useState } from "react";
-import { DataTable } from "@/components/DataTable";
-import { PageHeader, QueryError } from "@/components/PageHeader";
-import { useVeiculos } from "@/api/hooks";
-import { LanzaApiError } from "@/api/client";
-import { formatPlaca, statusClass, statusLabel } from "@/lib/format";
-
-type Filtro = "ativos" | "todos";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { PageHeader } from "@/components/PageHeader";
+import { PageTabs } from "@/components/PageTabs";
+import { VeiculosListSection } from "@/pages/veiculos/VeiculosListSection";
+import { VeiculosCadastroSection } from "@/pages/veiculos/VeiculosCadastroSection";
+import { VeiculosToolsSection } from "@/pages/VeiculosToolsSection";
 
 export function VeiculosPage() {
-  const [filtro, setFiltro] = useState<Filtro>("ativos");
-  const [placa, setPlaca] = useState("");
-  const query = useVeiculos({
-    ativo: filtro === "ativos" ? true : undefined,
-    placa: placa.trim() || undefined,
-  });
-
   return (
     <PageHeader
       title="Veículos"
-      description="Frota com placa, UF de registro e vínculo ao cliente."
-      actions={
-        <>
-          <input
-            className="input"
-            placeholder="Filtrar placa"
-            value={placa}
-            onChange={(e) => setPlaca(e.target.value)}
-          />
-          <select
-            className="select"
-            value={filtro}
-            onChange={(e) => setFiltro(e.target.value as Filtro)}
-          >
-            <option value="ativos">Só ativos</option>
-            <option value="todos">Todos</option>
-          </select>
-        </>
-      }
+      description="Frota de locação — listagem, cadastro e ferramentas FIPE/CRLV."
     >
-      {query.isError ? (
-        <QueryError
-          message={
-            query.error instanceof LanzaApiError
-              ? query.error.message
-              : "Falha ao listar veículos."
-          }
-        />
-      ) : null}
-
-      <DataTable
-        loading={query.isLoading}
-        rows={query.data?.items ?? []}
-        keyFn={(v) => v.id}
-        columns={[
-          {
-            key: "placa",
-            header: "Placa",
-            render: (v) => <strong>{formatPlaca(v.placa)}</strong>,
-          },
-          { key: "modelo", header: "Marca / modelo", render: (v) => v.marcaModelo ?? "—" },
-          { key: "uf", header: "UF", render: (v) => v.ufRegistro ?? "SC" },
-          {
-            key: "ativo",
-            header: "Status",
-            render: (v) => (
-              <span className={statusClass(v.ativo)}>{statusLabel(v.ativo)}</span>
-            ),
-          },
-          {
-            key: "cliente",
-            header: "Cliente vinculado",
-            render: (v) => v.clienteVinculadoId ?? "—",
-          },
+      <PageTabs
+        ariaLabel="Veículos"
+        tabs={[
+          { to: "/veiculos", label: "Listagem", end: true },
+          { to: "/veiculos/fipe", label: "FIPE / CRLV" },
         ]}
       />
+      <Routes>
+        <Route index element={<VeiculosListSection />} />
+        <Route path="novo" element={<VeiculosCadastroSection />} />
+        <Route path=":id/editar" element={<VeiculosCadastroRoute />} />
+        <Route path="fipe" element={<VeiculosToolsSection />} />
+        <Route path="cadastro" element={<Navigate to="/veiculos/novo" replace />} />
+        <Route path="*" element={<Navigate to="/veiculos" replace />} />
+      </Routes>
     </PageHeader>
   );
+}
+
+function VeiculosCadastroRoute() {
+  const { id } = useParams<{ id: string }>();
+  if (!id) return <Navigate to="/veiculos" replace />;
+  return <VeiculosCadastroSection veiculoId={id} />;
 }
