@@ -78,7 +78,7 @@ export function ContratosListSection() {
 
   return (
     <>
-      <ListToolbar addTo="/contratos/novo">
+      <ListToolbar addTo="/contratos/cadastrar">
         <select className="select" value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
           <option value="ativo">Ativos</option>
           <option value="encerrado">Encerrados</option>
@@ -132,6 +132,7 @@ export function ContratosListSection() {
           {
             key: "acoes",
             header: "Ações",
+            className: "col-acoes",
             render: (c) => (
               <RowActions
                 editTo={`/contratos/${c.id}/editar`}

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components/DataTable";
-import { PageHeader, QueryError } from "@/components/PageHeader";
+import { QueryError } from "@/components/PageHeader";
 import { ResultPanel } from "@/components/ResultPanel";
 import { useClientes, useInfracoes } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
@@ -55,7 +55,7 @@ function situacaoLabel(i: Infracao): { text: string; className: string } {
   return { text: raw || "—", className: "badge badge--muted" };
 }
 
-export function InfracoesPage() {
+export function RelatorioInfracoesSection() {
   const [emAberto, setEmAberto] = useState(true);
   const [semCliente, setSemCliente] = useState(false);
   const [placa, setPlaca] = useState("");
@@ -105,18 +105,16 @@ export function InfracoesPage() {
   }
 
   return (
-    <PageHeader
-      title="Infrações"
-      description="Multas sincronizadas do DETRAN SC — autuação, cliente e situação de cobrança."
-      actions={
-        !loading ? (
+    <>
+      {!loading ? (
+        <p className="relatorio-infracoes__resumo">
           <span className="badge badge--muted">
             {query.data?.total ?? 0} registo{(query.data?.total ?? 0) === 1 ? "" : "s"} ·{" "}
             {formatBrl(total)}
           </span>
-        ) : null
-      }
-    >
+        </p>
+      ) : null}
+
       <div className="despesas-toolbar">
         <input
           className="input"
@@ -235,6 +233,6 @@ export function InfracoesPage() {
           },
         ]}
       />
-    </PageHeader>
+    </>
   );
 }
