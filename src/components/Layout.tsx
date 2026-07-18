@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { useHealth } from "@/api/hooks";
 
@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 
 import { ApiKeyBanner } from "./ApiKeyBanner";
 import { BrandMark } from "./BrandMark";
+import { IconClose, IconMenu } from "./icons";
 import { RastreameEspelhoToggle } from "./RastreameEspelhoToggle";
 
 
@@ -35,9 +36,49 @@ export function Layout() {
 
   const { user, logout } = useAuth();
 
+  const location = useLocation();
+
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
 
+  const [navOpen, setNavOpen] = useState(false);
+
   const apiBase = getApiBaseUrl();
+
+
+
+  useEffect(() => {
+
+    setNavOpen(false);
+
+  }, [location.pathname]);
+
+
+
+  useEffect(() => {
+
+    document.body.classList.toggle("nav-open", navOpen);
+
+    return () => document.body.classList.remove("nav-open");
+
+  }, [navOpen]);
+
+
+
+  useEffect(() => {
+
+    if (!navOpen) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+
+      if (e.key === "Escape") setNavOpen(false);
+
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => window.removeEventListener("keydown", onKeyDown);
+
+  }, [navOpen]);
 
 
 
@@ -45,14 +86,60 @@ export function Layout() {
 
     <div className="app-shell">
 
-      <aside className="sidebar">
+      {navOpen ? (
 
-        <div className="brand">
-          <BrandMark variant="sidebar" />
-          <div>
-            <strong>Lanza</strong>
-            <span className="brand__sub">Painel operacional</span>
+        <button
+
+          type="button"
+
+          className="sidebar-backdrop"
+
+          aria-label="Fechar menu"
+
+          onClick={() => setNavOpen(false)}
+
+        />
+
+      ) : null}
+
+
+
+      <aside className={`sidebar${navOpen ? " sidebar--open" : ""}`}>
+
+        <div className="sidebar__top">
+
+          <div className="brand">
+
+            <BrandMark variant="sidebar" />
+
+            <div>
+
+              <strong>Lanza</strong>
+
+              <span className="brand__sub">Painel operacional</span>
+
+            </div>
+
           </div>
+
+
+
+          <button
+
+            type="button"
+
+            className="sidebar__close btn btn--icon"
+
+            aria-label="Fechar menu"
+
+            onClick={() => setNavOpen(false)}
+
+          >
+
+            <IconClose className="row-actions__icon" title="" />
+
+          </button>
+
         </div>
 
 
@@ -88,7 +175,9 @@ export function Layout() {
 
 
         <footer className="sidebar__footer">
+
           <RastreameEspelhoToggle />
+
           {user ? (
 
             <div className="sidebar__user">
@@ -171,13 +260,49 @@ export function Layout() {
 
 
 
-      <main className="main">
+      <div className="app-content">
 
-        <ApiKeyBanner open={apiKeyOpen} onClose={() => setApiKeyOpen(false)} />
+        <header className="mobile-topbar">
 
-        <Outlet />
+          <button
 
-      </main>
+            type="button"
+
+            className="mobile-topbar__menu btn btn--icon"
+
+            aria-label="Abrir menu"
+
+            aria-expanded={navOpen}
+
+            onClick={() => setNavOpen(true)}
+
+          >
+
+            <IconMenu className="row-actions__icon" title="" />
+
+          </button>
+
+          <div className="mobile-topbar__brand">
+
+            <BrandMark variant="auth" />
+
+            <strong>Lanza</strong>
+
+          </div>
+
+        </header>
+
+
+
+        <main className="main">
+
+          <ApiKeyBanner open={apiKeyOpen} onClose={() => setApiKeyOpen(false)} />
+
+          <Outlet />
+
+        </main>
+
+      </div>
 
     </div>
 

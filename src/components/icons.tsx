@@ -135,6 +135,24 @@ export function IconRecebimento({ className, title = "Lançar recebimento" }: Ic
   );
 }
 
+export function IconMenu({ className, title = "Abrir menu" }: IconProps) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden={!title}>
+      {title ? <title>{title}</title> : null}
+      <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function IconClose({ className, title = "Fechar" }: IconProps) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden={!title}>
+      {title ? <title>{title}</title> : null}
+      <path d="M7 7l10 10M17 7 7 17" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function IconX({ className, title = "Reprovar" }: IconProps) {
   return (
     <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden={!title}>
