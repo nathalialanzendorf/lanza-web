@@ -37,10 +37,32 @@ function deveTentarOcrLocal(tipo: DocUploadTipo): boolean {
   return tipo === "cnh" || tipo === "comprovante-residencia";
 }
 
+function camposDocumentoOk(tipo: DocUploadTipo, campos: Record<string, unknown>): boolean {
+  if (tipo === "cnh") {
+    if (typeof campos.cpf === "string" && campos.cpf.replace(/\D/g, "").length === 11) return true;
+    const cnh = campos.cnh as Record<string, unknown> | undefined;
+    const reg = cnh?.numeroRegistro;
+    return typeof reg === "string" && reg.replace(/\D/g, "").length >= 9;
+  }
+  if (tipo === "comprovante-residencia") {
+    const e = campos.endereco as Record<string, unknown> | undefined;
+    if (!e) return false;
+    const bairro = String(e.bairro ?? "");
+    const cidade = String(e.cidade ?? "");
+    if (/pix|\.com|vencimento|cobran/i.test(bairro)) return false;
+    if (/^\d{5}-?\d{3}/.test(cidade)) return false;
+    return Boolean(e.cep && e.cidade && e.bairro && e.uf);
+  }
+  return true;
+}
+
 function erroPermiteFallback(err: unknown): boolean {
-  if (err instanceof DOMException && err.name === "TimeoutError") return true;
+  if (err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError")) {
+    return true;
+  }
+  if (err instanceof TypeError) return true;
   if (err instanceof LanzaApiError) {
-    return err.status === 504 || err.status === 502 || err.status === 503;
+    return [400, 408, 422, 500, 502, 503, 504].includes(err.status);
   }
   return false;
 }
@@ -64,12 +86,11 @@ export function DocUploadField({
     nome: string,
     conteudoBase64: string,
   ): Promise<{ campos: Record<string, unknown>; avisos: string[] }> {
-    setStatus("Servidor demorou — lendo OCR no navegador…");
-
     let imagemBase64 = conteudoBase64;
     let mime = "image/jpeg";
 
     if (!isImagem(nome)) {
+      setStatus("Extraindo imagem do PDF…");
       const img = await lanzaApi.extrairImagemDocumento({
         tipo,
         nomeArquivo: nome,
@@ -82,11 +103,15 @@ export function DocUploadField({
       mime = img.data.mime || "image/jpeg";
     }
 
+    setStatus("Lendo OCR no navegador (pode levar ~30s na 1ª vez)…");
     const text = await ocrDocumentoNoNavegador(imagemBase64, mime);
+    if (!text.trim()) {
+      throw new Error("OCR no navegador não extraiu texto.");
+    }
     const parsed = await lanzaApi.parseTextoDocumento({ tipo, text });
     const avisosLista = [
       ...(parsed.data.avisos ?? []),
-      "OCR executado no navegador (fallback — servidor excedeu o tempo).",
+      "OCR executado no navegador.",
     ];
     return {
       campos: (parsed.data.campos ?? {}) as Record<string, unknown>,
@@ -109,6 +134,19 @@ export function DocUploadField({
       let campos: Record<string, unknown>;
       let avisosLista: string[];
 
+      if (deveTentarOcrLocal(tipo)) {
+        try {
+          const local = await lerComOcrLocal(file.name, conteudoBase64);
+          if (camposDocumentoOk(tipo, local.campos)) {
+            setAvisos(local.avisos);
+            onParsed({ campos: local.campos, avisos: local.avisos });
+            return;
+          }
+        } catch {
+          setStatus("OCR local falhou — tentando no servidor…");
+        }
+      }
+
       try {
         const r = await lanzaApi.lerDocumento({
           tipo,
@@ -117,6 +155,18 @@ export function DocUploadField({
         });
         campos = (r.data.campos ?? {}) as Record<string, unknown>;
         avisosLista = r.data.avisos ?? [];
+
+        if (deveTentarOcrLocal(tipo) && !camposDocumentoOk(tipo, campos)) {
+          try {
+            const local = await lerComOcrLocal(file.name, conteudoBase64);
+            if (camposDocumentoOk(tipo, local.campos)) {
+              campos = local.campos;
+              avisosLista = local.avisos;
+            }
+          } catch {
+            /* mantém resultado parcial do servidor */
+          }
+        }
       } catch (err) {
         if (!deveTentarOcrLocal(tipo) || !erroPermiteFallback(err)) {
           throw err;
