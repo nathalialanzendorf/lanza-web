@@ -359,6 +359,14 @@ code {
   background: #fef3c7;
 }
 
+.data-table tbody tr.row--cliente-alt td {
+  background: #e4e4e7;
+}
+
+.dashboard-recebimentos--zebra-cliente .data-table tbody tr:not(.row--cliente-alt) td {
+  background: #ffffff;
+}
+
 .contratos-renovar__legenda {
   display: flex;
   flex-wrap: wrap;

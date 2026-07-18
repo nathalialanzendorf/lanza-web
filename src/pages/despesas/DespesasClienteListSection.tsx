@@ -7,11 +7,12 @@ import { SELECT_LABEL_TODOS } from "@/lib/selectLabels";
 import { ListToolbar } from "@/components/ListToolbar";
 import { QueryError } from "@/components/PageHeader";
 import { RowActions } from "@/components/RowActions";
-import { useDespesasCliente } from "@/api/hooks";
+import { useClientes, useDespesasCliente, useVeiculos } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
-import { formatBrl, formatPlaca } from "@/lib/format";
-import type { ClienteDespesa } from "@/api/types";
+import { clienteExibicaoPorId, formatBrl, formatVeiculoLabel } from "@/lib/format";
+import { urlLancarRecebimentoDespesa } from "@/lib/recebimentoUrl";
+import type { ClienteDespesa, Veiculo } from "@/api/types";
 
 const CATEGORIAS = [
   "Manutenção",
@@ -25,8 +26,34 @@ const CATEGORIAS = [
 
 type FiltroPagamento = "em_aberto" | "pago" | "todos";
 
-function placaDespesa(d: ClienteDespesa): string {
-  return formatPlaca(d.placa ?? d.veiculoId);
+function compactPlaca(placa: string | null | undefined): string {
+  return (placa ?? "").replace(/-/g, "").trim().toUpperCase();
+}
+
+function veiculoDespesa(d: ClienteDespesa, veiculos: Veiculo[] | undefined): string {
+  const placaKey = compactPlaca(d.placa ?? d.veiculoId);
+  const v = veiculos?.find(
+    (x) => x.id === d.veiculoId || compactPlaca(x.placa) === placaKey,
+  );
+  if (v) return formatVeiculoLabel(v);
+  return formatVeiculoLabel({ placa: d.placa ?? d.veiculoId });
+}
+
+function statusDespesa(d: ClienteDespesa): string {
+  const situacao = d.situacao?.trim();
+  if (situacao) return situacao;
+  return d.paga ? "Pago" : "Em aberto";
+}
+
+function badgeStatusDespesa(d: ClienteDespesa): "ok" | "warn" | "muted" {
+  if (d.paga || d.situacao?.toLowerCase() === "registrado") return "ok";
+  if (d.ativo === false) return "muted";
+  return "warn";
+}
+
+function despesaElegivelBaixa(d: ClienteDespesa): boolean {
+  if (d.paga || d.situacao?.toLowerCase() === "registrado") return false;
+  return Boolean((d.clienteId ?? d.condutorId)?.trim());
 }
 
 export function DespesasClienteListSection() {
@@ -46,6 +73,10 @@ export function DespesasClienteListSection() {
     categoria: categoria || undefined,
     competencia: competencia.trim() || undefined,
   });
+  const clientesQuery = useClientes();
+  const clientes = clientesQuery.data?.items;
+  const veiculosQuery = useVeiculos();
+  const veiculos = veiculosQuery.data?.items;
 
   const rows = query.data?.items ?? [];
   const temFiltro =
@@ -129,9 +160,25 @@ export function DespesasClienteListSection() {
         keyFn={(d) => d.id}
         emptyMessage={temFiltro ? "Nenhuma despesa corresponde aos filtros." : "Nenhuma despesa registada."}
         columns={[
-          { key: "categoria", header: "Categoria", render: (d) => d.categoria ?? "—" },
-          { key: "desc", header: "Descrição", render: (d) => d.descricao ?? "—" },
-          { key: "placa", header: "Placa", render: (d) => placaDespesa(d) },
+          {
+            key: "veiculo",
+            header: "Veículo",
+            render: (d) => d.veiculoLabel?.trim() || veiculoDespesa(d, veiculos),
+          },
+          {
+            key: "cliente",
+            header: "Cliente",
+            render: (d) =>
+              clienteExibicaoPorId(
+                clientes,
+                d.clienteId ?? d.condutorId,
+                d.clienteNome,
+              ),
+          },
+          { key: "titulo", header: "Título", render: (d) => d.titulo?.trim() || "—" },
+          { key: "desc", header: "Descrição", render: (d) => d.descricao?.trim() || "—" },
+          { key: "categoria", header: "Categoria", render: (d) => d.categoria?.trim() || "—" },
+          { key: "vencimento", header: "Vencimento", render: (d) => d.vencimentoBr?.trim() || "—" },
           {
             key: "valor",
             header: "Valor",
@@ -139,11 +186,14 @@ export function DespesasClienteListSection() {
             render: (d) => formatBrl(Number(d.valorMulta) || 0),
           },
           {
-            key: "paga",
-            header: "Paga",
-            render: (d) => (
-              <span className={d.paga ? "badge badge--ok" : "badge badge--warn"}>{d.paga ? "Sim" : "Não"}</span>
-            ),
+            key: "status",
+            header: "Status",
+            render: (d) => {
+              const tone = badgeStatusDespesa(d);
+              return (
+                <span className={`badge badge--${tone}`}>{statusDespesa(d)}</span>
+              );
+            },
           },
           {
             key: "acoes",
@@ -151,6 +201,9 @@ export function DespesasClienteListSection() {
             className: "col-acoes",
             render: (d) => (
               <RowActions
+                recebimentoTo={
+                  despesaElegivelBaixa(d) ? urlLancarRecebimentoDespesa(d) : null
+                }
                 editTo={`/despesas/cliente/${d.id}/editar`}
                 deleting={excluindoId === d.id}
                 onDelete={() => void excluir(d)}

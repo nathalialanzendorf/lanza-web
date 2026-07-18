@@ -134,6 +134,7 @@ export type ClienteDespesa = {
   veiculoId?: string;
   placa?: string;
   categoria?: string;
+  titulo?: string;
   descricao?: string;
   valorMulta?: number;
   paga?: boolean;
@@ -146,6 +147,12 @@ export type ClienteDespesa = {
   clienteConfirmado?: boolean;
   condutorConfirmado?: boolean;
   rastreameId?: string | number | null;
+  /** Nome do cliente (listagem API). */
+  clienteNome?: string | null;
+  /** Rótulo do veículo (API listagem). */
+  veiculoLabel?: string | null;
+  /** Vencimento calculado (DD/MM/AAAA) — listagem API. */
+  vencimentoBr?: string | null;
 };
 
 export type AnaliseCadastroItem = {
@@ -210,6 +217,8 @@ export type ParceiroDespesa = {
   valor?: number;
   competencia?: string;
   baixa?: string;
+  veiculoLabel?: string | null;
+  vencimentoBr?: string | null;
 };
 
 export type Infracao = {

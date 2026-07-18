@@ -39,6 +39,28 @@ function alertaAtrasoRecebimento(l: DashboardRecebimentoLinha): ReactNode {
   return <span className="badge badge--danger">Vencido há {dias} dia(s)</span>;
 }
 
+function chaveClienteLinha(l: DashboardRecebimentoLinha): string {
+  const id = l.clienteId?.trim();
+  if (id) return `id:${id}`;
+  return `nome:${(l.clienteNome ?? "").trim().toLocaleLowerCase("pt-BR")}`;
+}
+
+/** Índice de grupo por cliente (0, 0, 1, 1, 2…) para zebra na tabela. */
+function indiceGrupoPorCliente(linhas: DashboardRecebimentoLinha[]): number[] {
+  const indices: number[] = [];
+  let grupo = -1;
+  let ultimoCliente: string | null = null;
+  for (const l of linhas) {
+    const chave = chaveClienteLinha(l);
+    if (chave !== ultimoCliente) {
+      grupo += 1;
+      ultimoCliente = chave;
+    }
+    indices.push(grupo);
+  }
+  return indices;
+}
+
 function RecebimentosTable({
   titulo,
   linhas,
@@ -49,6 +71,7 @@ function RecebimentosTable({
   mostrarDescricao = true,
   acoesCompactas = false,
   dataReferenciaBr,
+  zebraPorCliente = false,
 }: {
   titulo: string;
   linhas: DashboardRecebimentoLinha[];
@@ -62,10 +85,16 @@ function RecebimentosTable({
   mostrarDescricao?: boolean;
   acoesCompactas?: boolean;
   dataReferenciaBr?: string;
+  zebraPorCliente?: boolean;
 }) {
+  const gruposCliente = useMemo(
+    () => (zebraPorCliente ? indiceGrupoPorCliente(linhas) : null),
+    [linhas, zebraPorCliente],
+  );
+
   return (
     <section
-      className={`form-card dashboard-recebimentos${acoesCompactas ? " dashboard-recebimentos--acoes-compactas" : ""}`}
+      className={`form-card dashboard-recebimentos${acoesCompactas ? " dashboard-recebimentos--acoes-compactas" : ""}${zebraPorCliente ? " dashboard-recebimentos--zebra-cliente" : ""}`}
     >
       <header className="dashboard-recebimentos__head">
         <h3 className="form-card__title">{titulo}</h3>
@@ -89,12 +118,19 @@ function RecebimentosTable({
               </tr>
             </thead>
             <tbody>
-              {linhas.map((l) => {
+              {linhas.map((l, i) => {
                 const recebimentoTo = mostrarAcaoRecebimento
                   ? urlLancarRecebimento(l, dataReferenciaBr)
                   : null;
+                const rowClass =
+                  zebraPorCliente && gruposCliente && gruposCliente[i] % 2 === 1
+                    ? "row--cliente-alt"
+                    : undefined;
                 return (
-                <tr key={l.despesaId ?? `${l.clienteId ?? "—"}-${l.placa}-${l.vencimentoBr ?? ""}`}>
+                <tr
+                  key={l.despesaId ?? `${l.clienteId ?? "—"}-${l.placa}-${l.vencimentoBr ?? ""}`}
+                  className={rowClass}
+                >
                   <td>{clienteExibicaoPorId(clientes, l.clienteId, l.clienteNome)}</td>
                   <td>{colunaVeiculo === "Veículo" ? (l.veiculo ?? l.placa) : l.placa}</td>
                   {mostrarDescricao ? <td>{l.descricao?.trim() || "—"}</td> : null}
@@ -427,6 +463,7 @@ export function DashboardPage() {
               clientes={clientes}
               mostrarAcaoRecebimento
               acoesCompactas
+              zebraPorCliente
               dataReferenciaBr={rec.dataReferenciaBr}
               colunasExtra={[
                 { header: "Vencimento", render: vencimentoRecebimentoLinha },
