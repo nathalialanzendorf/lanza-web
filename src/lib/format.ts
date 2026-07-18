@@ -11,7 +11,10 @@ export function formatValorInput(value: number): string {
 }
 
 /** Aceita 610,05 · 1.610,05 · 610.05 (URL/JS). */
-export function parseValorInput(raw: string): number | null {
+export function parseValorInput(
+  raw: string,
+  opts?: { allowZero?: boolean },
+): number | null {
   const s = String(raw).trim().replace(/\s/g, "");
   if (!s) return null;
 
@@ -26,7 +29,8 @@ export function parseValorInput(raw: string): number | null {
   }
 
   const n = Number(normalized);
-  if (!Number.isFinite(n) || n <= 0) return null;
+  if (!Number.isFinite(n) || n < 0) return null;
+  if (n === 0 && !opts?.allowZero) return null;
   return Math.round(n * 100) / 100;
 }
 

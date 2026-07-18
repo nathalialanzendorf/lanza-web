@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { CadastroBackLink } from "@/components/CadastroBackLink";
@@ -6,12 +6,16 @@ import { ClienteSelect, VeiculoSelect, NativeSelect } from "@/components/EntityS
 import { DateInput } from "@/components/DateInput";
 import { Field, FormCard } from "@/components/FormCard";
 import { Toggle } from "@/components/Toggle";
+import { ValorInput } from "@/components/ValorInput";
 import { ResultPanel } from "@/components/ResultPanel";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
+import { formatValorInput, parseValorInput } from "@/lib/format";
 import {
+  DIAS_PAGAMENTO_SEMANAL,
   PERIODOS_CONTRATO,
   dataFimDePeriodo,
+  diaPagamentoSemanaParaSelect,
   diasEntreDatasBr,
   hojeDataBr,
   periodoDeDias,
@@ -32,7 +36,6 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-/** Preenche parcelas ou valor quando só um dos dois foi informado. */
 function resolverParcelas(
   qtdStr: string,
   valorStr: string,
@@ -42,8 +45,8 @@ function resolverParcelas(
   if (saldo <= 0) {
     throw new Error(`${label}: saldo a parcelar deve ser maior que zero.`);
   }
-  const qtd = qtdStr.trim() ? Number(qtdStr) : NaN;
-  const valor = valorStr.trim() ? Number(valorStr) : NaN;
+  const qtd = qtdStr.trim() ? Number.parseInt(qtdStr, 10) : NaN;
+  const valor = parseValorInput(valorStr) ?? NaN;
   const temQtd = Number.isFinite(qtd) && qtd > 0;
   const temValor = Number.isFinite(valor) && valor > 0;
 
@@ -60,9 +63,37 @@ function resolverParcelas(
   throw new Error(`${label}: informe a quantidade de parcelas ou o valor da parcela.`);
 }
 
+function sincronizarParcelamento(
+  saldo: number,
+  parcelas: string,
+  valorParcela: string,
+  setParcelas: (v: string) => void,
+  setValorParcela: (v: string) => void,
+  origem: "parcelas" | "valor" | "entrada",
+) {
+  if (saldo <= 0) return;
+  if (origem === "parcelas") {
+    const qtd = Number.parseInt(parcelas, 10);
+    if (Number.isFinite(qtd) && qtd > 0) {
+      setValorParcela(formatValorInput(round2(saldo / qtd)));
+    }
+    return;
+  }
+  const valor = parseValorInput(valorParcela);
+  if (valor != null && valor > 0) {
+    setParcelas(String(Math.max(1, Math.ceil(saldo / valor - 1e-9))));
+    return;
+  }
+  const qtd = Number.parseInt(parcelas, 10);
+  if (Number.isFinite(qtd) && qtd > 0) {
+    setValorParcela(formatValorInput(round2(saldo / qtd)));
+  }
+}
+
 function ParcelamentoFields({
   titulo,
   entradaLabel,
+  saldo,
   entrada,
   onEntradaChange,
   parcelas,
@@ -73,6 +104,7 @@ function ParcelamentoFields({
 }: {
   titulo: string;
   entradaLabel: string;
+  saldo: number;
   entrada: string;
   onEntradaChange: (v: string) => void;
   parcelas: string;
@@ -82,39 +114,39 @@ function ParcelamentoFields({
   disabled?: boolean;
 }) {
   return (
-    <div className="form-section">
+    <div className="form-section field--full">
       <h3 className="form-section-title">{titulo}</h3>
+      {saldo > 0 ? (
+        <p className="form-section__lead">
+          Saldo a parcelar: {saldo.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+        </p>
+      ) : null}
       <div className="form-grid">
         <Field label={entradaLabel} hint="Deixe vazio ou 0 se nada foi pago na retirada">
-          <input
-            className="input"
-            type="number"
-            step="0.01"
-            min={0}
-            value={entrada}
-            onChange={(e) => onEntradaChange(e.target.value)}
-            disabled={disabled}
-          />
+          <ValorInput value={entrada} onChange={onEntradaChange} allowZero disabled={disabled} />
         </Field>
-        <Field label="Quantidade de parcelas" hint="Ou preencha só o valor da parcela">
+        <Field label="Quantidade de parcelas" hint="Ao digitar, calcula o valor da parcela">
           <input
             className="input"
             type="number"
             min={1}
             step={1}
             value={parcelas}
-            onChange={(e) => onParcelasChange(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              onParcelasChange(v);
+              sincronizarParcelamento(saldo, v, valorParcela, onParcelasChange, onValorParcelaChange, "parcelas");
+            }}
             disabled={disabled}
           />
         </Field>
-        <Field label="Valor da parcela (R$)" hint="Calculado automaticamente se informar só a quantidade">
-          <input
-            className="input"
-            type="number"
-            step="0.01"
-            min={0}
+        <Field label="Valor da parcela (R$)" hint="Ao digitar, calcula a quantidade de parcelas">
+          <ValorInput
             value={valorParcela}
-            onChange={(e) => onValorParcelaChange(e.target.value)}
+            onChange={(v) => {
+              onValorParcelaChange(v);
+              sincronizarParcelamento(saldo, parcelas, v, onParcelasChange, onValorParcelaChange, "valor");
+            }}
             disabled={disabled}
           />
         </Field>
@@ -138,6 +170,7 @@ export function ContratosCadastroSection({
   const [cpf, setCpf] = useState("");
   const [semana, setSemana] = useState("");
   const [caucao, setCaucao] = useState("");
+  const [diaPagamento, setDiaPagamento] = useState(DIAS_PAGAMENTO_SEMANAL[0]!.value);
   const periodoInicial = modo === "renovar" ? "3 meses" : "semana";
   const inicioInicial = hojeDataBr();
   const [periodo, setPeriodo] = useState(periodoInicial);
@@ -206,13 +239,17 @@ export function ContratosCadastroSection({
           prazoDias?: number;
           valorSemanal?: number | null;
           valorCaucao?: number;
+          diaPagamentoSemana?: string | null;
         };
         if (c.placa) setPlaca(c.placa);
         if (c.cpf) setCpf(c.cpf);
-        if (c.valorSemanal != null) setSemana(String(c.valorSemanal));
+        if (c.valorSemanal != null) setSemana(formatValorInput(c.valorSemanal));
         if (c.valorCaucao != null) {
-          setCaucao(String(c.valorCaucao));
+          setCaucao(formatValorInput(c.valorCaucao));
           if (modo === "renovar") setCaucaoAnterior(c.valorCaucao);
+        }
+        if (c.diaPagamentoSemana) {
+          setDiaPagamento(diaPagamentoSemanaParaSelect(c.diaPagamentoSemana));
         }
         if (modo === "renovar") {
           const inicio = hojeDataBr();
@@ -235,7 +272,7 @@ export function ContratosCadastroSection({
     };
   }, [contratoId, modo]);
 
-  const caucaoNumerica = Number(caucao);
+  const caucaoNumerica = parseValorInput(caucao) ?? NaN;
   const caucaoComplementoRenovacao =
     modo === "renovar" && caucaoAnterior != null && Number.isFinite(caucaoNumerica)
       ? round2(caucaoNumerica - caucaoAnterior)
@@ -251,8 +288,50 @@ export function ContratosCadastroSection({
     }
   }, [modo, mostrarParcelarCaucaoRenovacao]);
 
-  function saldoCaucaoParcelavel(caucaoTotal: number): number {
-    const entrada = caucaoEntrada.trim() ? Number(caucaoEntrada) : 0;
+  const saldoCaucaoParcelavel = useMemo(() => {
+    const total = parseValorInput(caucao);
+    if (total == null) return 0;
+    const entrada = parseValorInput(caucaoEntrada, { allowZero: true }) ?? 0;
+    const base =
+      modo === "renovar" && caucaoAnterior != null
+        ? round2(total - caucaoAnterior)
+        : total;
+    return Math.max(0, round2(base - entrada));
+  }, [caucao, caucaoEntrada, caucaoAnterior, modo]);
+
+  const saldoSemanaParcelavel = useMemo(() => {
+    const total = parseValorInput(semana);
+    if (total == null) return 0;
+    const entrada = parseValorInput(semanaEntrada, { allowZero: true }) ?? 0;
+    return Math.max(0, round2(total - entrada));
+  }, [semana, semanaEntrada]);
+
+  useEffect(() => {
+    if (!parcelarCaucao || saldoCaucaoParcelavel <= 0) return;
+    sincronizarParcelamento(
+      saldoCaucaoParcelavel,
+      caucaoParcelasN,
+      caucaoValorParcela,
+      setCaucaoParcelasN,
+      setCaucaoValorParcela,
+      "entrada",
+    );
+  }, [saldoCaucaoParcelavel, parcelarCaucao]);
+
+  useEffect(() => {
+    if (!parcelarSemana || saldoSemanaParcelavel <= 0) return;
+    sincronizarParcelamento(
+      saldoSemanaParcelavel,
+      semanaParcelasN,
+      semanaValorParcela,
+      setSemanaParcelasN,
+      setSemanaValorParcela,
+      "entrada",
+    );
+  }, [saldoSemanaParcelavel, parcelarSemana]);
+
+  function saldoCaucaoParcelavelSubmit(caucaoTotal: number): number {
+    const entrada = parseValorInput(caucaoEntrada, { allowZero: true }) ?? 0;
     const base =
       modo === "renovar" && caucaoAnterior != null
         ? round2(caucaoTotal - caucaoAnterior)
@@ -264,20 +343,23 @@ export function ContratosCadastroSection({
           : "Informe um valor de caução válido para parcelamento.",
       );
     }
-    return round2(base - (Number.isFinite(entrada) ? entrada : 0));
+    return round2(base - entrada);
   }
 
   async function submit() {
     setLoading(true);
     setError(null);
     try {
-      const caucaoTotal = Number(caucao);
-      const semanaTotal = Number(semana);
-      if (!Number.isFinite(caucaoTotal) || caucaoTotal <= 0) {
+      const caucaoTotal = parseValorInput(caucao);
+      const semanaTotal = parseValorInput(semana);
+      if (caucaoTotal == null) {
         throw new Error("Informe o valor da caução.");
       }
-      if (!Number.isFinite(semanaTotal) || semanaTotal <= 0) {
+      if (semanaTotal == null) {
         throw new Error("Informe o valor semanal.");
+      }
+      if (!diaPagamento.trim()) {
+        throw new Error("Informe o dia de pagamento semanal.");
       }
 
       const body: Record<string, unknown> = {
@@ -285,6 +367,7 @@ export function ContratosCadastroSection({
         cpf: cpf.trim() || undefined,
         semana: semanaTotal,
         caucao: caucaoTotal,
+        diaPagamento: diaPagamento.trim(),
       };
 
       const inicio = dataInicio.trim();
@@ -301,7 +384,7 @@ export function ContratosCadastroSection({
       if (per) body.periodo = per;
 
       if (parcelarCaucao) {
-        const saldo = saldoCaucaoParcelavel(caucaoTotal);
+        const saldo = saldoCaucaoParcelavelSubmit(caucaoTotal);
         const { parcelas, valorParcela } = resolverParcelas(
           caucaoParcelasN,
           caucaoValorParcela,
@@ -310,17 +393,14 @@ export function ContratosCadastroSection({
         );
         body.caucaoParcelasN = parcelas;
         body.caucaoValorParcela = valorParcela;
-        const entrada = caucaoEntrada.trim() ? Number(caucaoEntrada) : 0;
+        const entrada = parseValorInput(caucaoEntrada, { allowZero: true }) ?? 0;
         if (entrada > 0) {
           body.caucaoSaldoAberto = saldo;
         }
       }
 
       if (modo === "criar" && parcelarSemana) {
-        const entrada = semanaEntrada.trim() ? Number(semanaEntrada) : 0;
-        if (!Number.isFinite(entrada) || entrada < 0) {
-          throw new Error("Valor pago na retirada inválido (1ª semana).");
-        }
+        const entrada = parseValorInput(semanaEntrada, { allowZero: true }) ?? 0;
         const saldo = round2(semanaTotal - entrada);
         const { parcelas, valorParcela } = resolverParcelas(
           semanaParcelasN,
@@ -338,7 +418,13 @@ export function ContratosCadastroSection({
       setResult(r);
       navigate("/contratos");
     } catch (err) {
-      setError(err instanceof LanzaApiError ? err.message : err instanceof Error ? err.message : "Falha ao gerar contrato.");
+      setError(
+        err instanceof LanzaApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Falha ao gerar contrato.",
+      );
     } finally {
       setLoading(false);
     }
@@ -353,6 +439,8 @@ export function ContratosCadastroSection({
     );
   }
 
+  const mostrarToggleCaucao = modo === "criar" || mostrarParcelarCaucaoRenovacao;
+
   return (
     <>
       <CadastroBackLink to={backTo} label={backLabel} />
@@ -364,36 +452,36 @@ export function ContratosCadastroSection({
           <ClienteSelect value={cpf} onChange={setCpf} valueField="cpf" variant="cadastro" disabled={loading} />
         </Field>
         <Field label="Valor semanal (R$)">
-          <input
-            className="input"
-            type="number"
-            step="0.01"
-            value={semana}
-            onChange={(e) => setSemana(e.target.value)}
-            required
-            disabled={loading}
-          />
+          <ValorInput value={semana} onChange={setSemana} required disabled={loading} />
         </Field>
         <Field label="Caução (R$)">
-          <input
-            className="input"
-            type="number"
-            step="0.01"
-            value={caucao}
-            onChange={(e) => setCaucao(e.target.value)}
-            required
+          <ValorInput value={caucao} onChange={setCaucao} required disabled={loading} />
+        </Field>
+        <Field label="Dia de pagamento semanal" hint="Confirme o dia da cláusula 3.2 do contrato">
+          <NativeSelect
+            value={diaPagamento}
+            onChange={setDiaPagamento}
+            variant="cadastro"
+            allowEmpty={false}
             disabled={loading}
+            aria-label="Dia de pagamento semanal"
+          >
+            {DIAS_PAGAMENTO_SEMANAL.map((d) => (
+              <option key={d.value} value={d.value}>
+                {d.label}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+        <Field label="Data início">
+          <DateInput
+            value={dataInicio}
+            onChange={handleDataInicioChange}
+            disabled={loading}
+            required
           />
         </Field>
-        <div className="form-grid">
-          <Field label="Data início">
-            <DateInput
-              value={dataInicio}
-              onChange={handleDataInicioChange}
-              disabled={loading}
-              required
-            />
-          </Field>
+        <div className="field--full form-grid form-grid--contrato-prazo">
           <Field label="Tempo do contrato">
             <NativeSelect
               value={periodo}
@@ -421,66 +509,68 @@ export function ContratosCadastroSection({
           </Field>
         </div>
 
-        {modo === "criar" || mostrarParcelarCaucaoRenovacao ? (
-          <>
-            <Toggle
-              className="field"
-              checked={parcelarCaucao}
-              onChange={setParcelarCaucao}
-              disabled={loading}
-              label="Parcelar caução"
-            />
-            {modo === "renovar" && caucaoAnterior != null && caucaoComplementoRenovacao != null ? (
-              <p className="field__hint">
-                Caução anterior {caucaoAnterior.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                {" · "}
-                complemento{" "}
-                {caucaoComplementoRenovacao.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-              </p>
-            ) : null}
-            {parcelarCaucao ? (
-              <ParcelamentoFields
-                titulo={
-                  modo === "renovar"
-                    ? "Parcelamento do complemento de caução (cláusula 3.3)"
-                    : "Parcelamento da caução (cláusula 3.3)"
-                }
-                entradaLabel={modo === "renovar" ? "Pago na renovação (R$)" : "Pago na retirada (R$)"}
-                entrada={caucaoEntrada}
-                onEntradaChange={setCaucaoEntrada}
-                parcelas={caucaoParcelasN}
-                onParcelasChange={setCaucaoParcelasN}
-                valorParcela={caucaoValorParcela}
-                onValorParcelaChange={setCaucaoValorParcela}
+        {mostrarToggleCaucao || modo === "criar" ? (
+          <div className="contrato-toggles-row">
+            {mostrarToggleCaucao ? (
+              <Toggle
+                checked={parcelarCaucao}
+                onChange={setParcelarCaucao}
                 disabled={loading}
+                label="Parcelar caução"
               />
             ) : null}
-          </>
+            {modo === "criar" ? (
+              <Toggle
+                checked={parcelarSemana}
+                onChange={setParcelarSemana}
+                disabled={loading}
+                label="Parcelar 1ª semana"
+              />
+            ) : null}
+          </div>
         ) : null}
 
-        {modo === "criar" ? (
-          <>
-            <Toggle
-              className="field"
-              checked={parcelarSemana}
-              onChange={setParcelarSemana}
-              disabled={loading}
-              label="Parcelar 1ª semana"
-            />
-            {parcelarSemana ? (
-              <ParcelamentoFields
-                titulo="Parcelamento da 1ª semana (cláusula 3.2)"
-                entradaLabel="Pago na retirada (R$)"
-                entrada={semanaEntrada}
-                onEntradaChange={setSemanaEntrada}
-                parcelas={semanaParcelasN}
-                onParcelasChange={setSemanaParcelasN}
-                valorParcela={semanaValorParcela}
-                onValorParcelaChange={setSemanaValorParcela}
-                disabled={loading}
-              />
-            ) : null}
-          </>
+        {mostrarToggleCaucao && modo === "renovar" && caucaoAnterior != null && caucaoComplementoRenovacao != null ? (
+          <p className="field__hint field--full">
+            Caução anterior {caucaoAnterior.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+            {" · "}
+            complemento{" "}
+            {caucaoComplementoRenovacao.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+          </p>
+        ) : null}
+
+        {parcelarCaucao && mostrarToggleCaucao ? (
+          <ParcelamentoFields
+            titulo={
+              modo === "renovar"
+                ? "Parcelamento do complemento de caução (cláusula 3.3)"
+                : "Parcelamento da caução (cláusula 3.3)"
+            }
+            entradaLabel={modo === "renovar" ? "Pago na renovação (R$)" : "Pago na retirada (R$)"}
+            saldo={saldoCaucaoParcelavel}
+            entrada={caucaoEntrada}
+            onEntradaChange={setCaucaoEntrada}
+            parcelas={caucaoParcelasN}
+            onParcelasChange={setCaucaoParcelasN}
+            valorParcela={caucaoValorParcela}
+            onValorParcelaChange={setCaucaoValorParcela}
+            disabled={loading}
+          />
+        ) : null}
+
+        {modo === "criar" && parcelarSemana ? (
+          <ParcelamentoFields
+            titulo="Parcelamento da 1ª semana (cláusula 3.2)"
+            entradaLabel="Pago na retirada (R$)"
+            saldo={saldoSemanaParcelavel}
+            entrada={semanaEntrada}
+            onEntradaChange={setSemanaEntrada}
+            parcelas={semanaParcelasN}
+            onParcelasChange={setSemanaParcelasN}
+            valorParcela={semanaValorParcela}
+            onValorParcelaChange={setSemanaValorParcela}
+            disabled={loading}
+          />
         ) : null}
       </FormCard>
       <ResultPanel title="Contrato gerado" data={result} />

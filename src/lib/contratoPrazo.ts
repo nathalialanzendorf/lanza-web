@@ -54,3 +54,43 @@ export function dataFimDePeriodo(inicioBr: string, periodo: string): string {
   if (!dias) return "";
   return somarDiasDataBr(inicioBr, dias);
 }
+
+/** Texto da cláusula 3.2 — `--dia-pagamento` / `montarDadosContrato`. */
+export const DIAS_PAGAMENTO_SEMANAL = [
+  { value: "todos os sábados", label: "Sábado" },
+  { value: "todas as segundas-feiras", label: "Segunda-feira" },
+  { value: "todas as terças-feiras", label: "Terça-feira" },
+  { value: "todas as quartas-feiras", label: "Quarta-feira" },
+  { value: "todas as quintas-feiras", label: "Quinta-feira" },
+  { value: "todas as sextas-feiras", label: "Sexta-feira" },
+  { value: "todos os domingos", label: "Domingo" },
+] as const;
+
+const DIA_PAGAMENTO_POR_CHAVE: Record<string, string> = {
+  sabado: "todos os sábados",
+  segunda: "todas as segundas-feiras",
+  terca: "todas as terças-feiras",
+  quarta: "todas as quartas-feiras",
+  quinta: "todas as quintas-feiras",
+  sexta: "todas as sextas-feiras",
+  domingo: "todos os domingos",
+};
+
+/** Converte `diaPagamentoSemana` do contrato para valor do select. */
+export function diaPagamentoSemanaParaSelect(raw: string | null | undefined): string {
+  const t = String(raw ?? "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .trim();
+  if (!t) return DIAS_PAGAMENTO_SEMANAL[0]!.value;
+  for (const opt of DIAS_PAGAMENTO_SEMANAL) {
+    if (opt.value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase() === t) {
+      return opt.value;
+    }
+  }
+  for (const [key, value] of Object.entries(DIA_PAGAMENTO_POR_CHAVE)) {
+    if (t.includes(key)) return value;
+  }
+  return DIAS_PAGAMENTO_SEMANAL[0]!.value;
+}
