@@ -290,6 +290,41 @@ code {
   background: #dbeafe;
 }
 
+.data-table tbody tr.row--vencido td {
+  background: #fef2f2;
+}
+
+.data-table tbody tr.row--proximo-vencer td {
+  background: #fffbeb;
+}
+
+.data-table tbody tr.row--vencido.is-selected td,
+.data-table tbody tr.row--proximo-vencer.is-selected td {
+  background: #dbeafe;
+}
+
+.data-table tbody tr.row--vencido[role="button"]:hover td {
+  background: #fee2e2;
+}
+
+.data-table tbody tr.row--proximo-vencer[role="button"]:hover td {
+  background: #fef3c7;
+}
+
+.contratos-renovar__legenda {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.contratos-renovar__termino {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
 .data-table .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -595,6 +630,40 @@ code {
   font-size: 0.82rem;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.cobrancas-vis__tipo + .cobrancas-vis__tipo {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.cobrancas-vis__tipo-titulo {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cobrancas-vis__contagem {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+.cobrancas-vis__mensagem + .cobrancas-vis__mensagem {
+  margin-top: 1rem;
+}
+
+.cobrancas-vis__meta {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  color: var(--muted);
 }
 
 .sync-section {
