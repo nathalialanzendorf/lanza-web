@@ -120,6 +120,18 @@ export function RecebimentosManualSection() {
     return opcoesValor.find((o) => o.id === valorOpcao) ?? null;
   }, [valorOpcao, opcoesValor]);
 
+  const despesaRegistro = useMemo(() => {
+    if (!despesaSel) return null;
+    return (
+      despesasFiltradas.find(
+        (d) => (d.autoInfracao?.trim() || d.id) === despesaSel.id,
+      ) ?? null
+    );
+  }, [despesaSel, despesasFiltradas]);
+
+  const baixaPorDespesa = despesaSel != null;
+  const baixaManual = valorOpcao === VALOR_MANUAL;
+
   const valorParcialHint = useMemo(() => {
     if (!despesaSel) return null;
     const pago = parseValorInput(valor);
@@ -145,16 +157,22 @@ export function RecebimentosManualSection() {
   }, [valorUrl]);
 
   useEffect(() => {
-    if (!placaUrl || !veiculosQuery.data) return;
+    if (!placaUrl || baixaPorDespesa || !veiculosQuery.data) return;
     const alvo = compactPlaca(placaUrl);
     const v = (veiculosQuery.data.items ?? []).find(
       (x) => x.placa && compactPlaca(x.placa) === alvo,
     );
     if (v) setVeiculoId(v.id);
-  }, [placaUrl, veiculosQuery.data]);
+  }, [placaUrl, baixaPorDespesa, veiculosQuery.data]);
 
   useEffect(() => {
-    if (!clienteId.trim() || veiculoId || !despesasQuery.data?.items.length || !veiculosQuery.data) {
+    if (
+      baixaPorDespesa ||
+      !clienteId.trim() ||
+      veiculoId ||
+      !despesasQuery.data?.items.length ||
+      !veiculosQuery.data
+    ) {
       return;
     }
     const placas = [
@@ -165,13 +183,11 @@ export function RecebimentosManualSection() {
     if (placas.length !== 1) return;
     const id = veiculoIdPorPlaca(placas[0]!, veiculosQuery.data.items);
     if (id) setVeiculoId(id);
-  }, [clienteId, veiculoId, despesasQuery.data, veiculosQuery.data]);
+  }, [baixaPorDespesa, clienteId, veiculoId, despesasQuery.data, veiculosQuery.data]);
 
   useEffect(() => {
-    if (!despesaSel?.placa || veiculoId || !veiculosQuery.data) return;
-    const id = veiculoIdPorPlaca(despesaSel.placa, veiculosQuery.data.items);
-    if (id) setVeiculoId(id);
-  }, [despesaSel, veiculoId, veiculosQuery.data]);
+    if (baixaPorDespesa) setVeiculoId("");
+  }, [baixaPorDespesa, despesaSel?.id]);
 
   useEffect(() => {
     if (!despesaIdUrl || opcoesValor.length === 0) return;
@@ -207,9 +223,14 @@ export function RecebimentosManualSection() {
   }
 
   function placaBaixa(): string | null {
+    if (despesaRegistro) {
+      const pk = placaDespesa(despesaRegistro);
+      if (pk.length === 7) return formatPlacaFromCompact(pk);
+      const bruta = String(despesaRegistro.placa ?? despesaRegistro.veiculoId ?? "").trim();
+      if (bruta) return bruta;
+    }
     if (veiculoSel?.placa?.trim()) return veiculoSel.placa.trim();
-    if (despesaSel?.placa?.trim()) return despesaSel.placa.trim();
-    const pk = despesasFiltradas.map(placaDespesa).find(Boolean);
+    const pk = despesasFiltradas.map(placaDespesa).find((p) => p.length === 7);
     return pk ? formatPlacaFromCompact(pk) : null;
   }
 
@@ -219,13 +240,21 @@ export function RecebimentosManualSection() {
   }
 
   async function montarPlano() {
-    const placa = placaBaixa();
-    if (!placa) {
-      setPlanoError("Selecione o cliente e uma pendência (ou o veículo).");
-      return;
-    }
     if (!clienteId.trim()) {
       setPlanoError("Selecione um cliente.");
+      return;
+    }
+    if (!baixaPorDespesa && !baixaManual) {
+      setPlanoError("Selecione uma pendência em aberto.");
+      return;
+    }
+    const placa = placaBaixa();
+    if (!placa) {
+      setPlanoError(
+        baixaManual
+          ? "Informe o veículo ou selecione uma pendência com placa."
+          : "A pendência selecionada não tem placa associada.",
+      );
       return;
     }
     const valorNum = parseValorInput(valor);
@@ -303,28 +332,17 @@ export function RecebimentosManualSection() {
             disabled={loadingPlano}
           />
         </Field>
-        <Field
-          label="Veículo"
-          hint="Opcional — preenchido automaticamente pelas pendências do cliente"
-        >
-          <VeiculoSelect
-            value={veiculoId}
-            onChange={onVeiculoChange}
-            valueField="id"
-            ativo
-            disabled={loadingPlano}
-            variant="cadastro"
-          />
-        </Field>
         <Field label="Data do crédito">
           <DateInput value={dataBr} onChange={setDataBr} required disabled={loadingPlano} />
         </Field>
         <Field
-          label="Valor recebido (R$)"
+          label="Pendência em aberto"
           span="wide"
           hint={
             clienteId
-              ? "Pendências em aberto do cliente — a placa é inferida da pendência"
+              ? baixaPorDespesa
+                ? `Placa ${placaBaixa() ?? "—"} · veículo não é necessário`
+                : "Selecione a despesa a quitar — só o cliente é obrigatório"
               : "Selecione o cliente para listar pendências"
           }
         >
@@ -363,6 +381,29 @@ export function RecebimentosManualSection() {
           </div>
           {valorParcialHint ? <p className="field__hint">{valorParcialHint}</p> : null}
         </Field>
+        {baixaManual ? (
+          <Field label="Veículo" hint="Obrigatório apenas para baixa manual sem pendência">
+            <VeiculoSelect
+              value={veiculoId}
+              onChange={onVeiculoChange}
+              valueField="id"
+              ativo
+              disabled={loadingPlano}
+              variant="cadastro"
+            />
+          </Field>
+        ) : !baixaPorDespesa ? (
+          <Field label="Veículo (opcional)" hint="Filtrar pendências por placa">
+            <VeiculoSelect
+              value={veiculoId}
+              onChange={onVeiculoChange}
+              valueField="id"
+              ativo
+              disabled={loadingPlano}
+              variant="cadastro"
+            />
+          </Field>
+        ) : null}
       </FormCard>
 
       {plano ? (
