@@ -229,7 +229,7 @@ export function RenegociacaoClientePanel({ clienteIdInicial = "", placaInicial =
             required
           />
         </Field>
-        <Field label="Veículo">
+        <Field label="Veículo" hint="Placa da renegociação — independente do vínculo no cadastro">
           <VeiculoSelect
             value={placa}
             onChange={(v) => {
@@ -237,7 +237,6 @@ export function RenegociacaoClientePanel({ clienteIdInicial = "", placaInicial =
               setResumo(null);
               setPreview(null);
             }}
-            clienteId={clienteId || undefined}
             ativo
             variant="cadastro"
             required

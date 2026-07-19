@@ -144,7 +144,7 @@ export function RecebimentosManualSection() {
     setVeiculoId(id);
     setValorOpcao("");
     setValor("");
-    if (!id) return;
+    if (!id || clienteId.trim()) return;
     const v = (veiculosQuery.data?.items ?? []).find((x) => x.id === id);
     if (v?.clienteVinculadoId) setClienteId(v.clienteVinculadoId);
   }
@@ -153,9 +153,6 @@ export function RecebimentosManualSection() {
     setClienteId(id);
     setValorOpcao("");
     setValor("");
-    if (!id || !veiculoId) return;
-    const v = (veiculosQuery.data?.items ?? []).find((x) => x.id === veiculoId);
-    if (v?.clienteVinculadoId && v.clienteVinculadoId !== id) setVeiculoId("");
   }
 
   function onValorOpcaoChange(opcao: string) {
@@ -242,13 +239,12 @@ export function RecebimentosManualSection() {
         submitLabel="Montar plano"
         error={planoError}
       >
-        <Field label="Veículo" hint="Filtra débitos e vincula ao cliente">
+        <Field label="Veículo" hint="Placa usada na baixa — pode diferir do vínculo atual no cadastro">
           <VeiculoSelect
             value={veiculoId}
             onChange={onVeiculoChange}
             valueField="id"
             ativo
-            clienteId={clienteId || undefined}
             required
             disabled={loadingPlano}
             variant="cadastro"

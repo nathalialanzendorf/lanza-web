@@ -98,6 +98,7 @@ export function DespesaClienteCadastroSection({ despesaId }: Props) {
           limiteDefesa: "",
           categoria,
           paga: false,
+          condutorId: clienteId.trim() || undefined,
           rastreameTipo: categoria === "Manutenção" ? "ALIMENTACAO" : "OUTROS",
         });
         setResult(r);
@@ -152,6 +153,16 @@ export function DespesaClienteCadastroSection({ despesaId }: Props) {
             required
             variant="cadastro"
             disabled={loading || editando}
+          />
+        </Field>
+        <Field label="Cliente" hint="Locatário responsável por esta despesa">
+          <ClienteSelect
+            value={clienteId}
+            onChange={setClienteId}
+            ativo
+            variant="cadastro"
+            required={!editando}
+            disabled={loading}
           />
         </Field>
         <Field label="Categoria">
