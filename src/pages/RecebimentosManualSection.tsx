@@ -38,6 +38,19 @@ function valorDespesaCliente(d: ClienteDespesa): number {
   return Number.isFinite(v) && v > 0 ? v : 0;
 }
 
+function placaDespesa(d: ClienteDespesa): string {
+  return compactPlaca(String(d.placa ?? d.veiculoId ?? ""));
+}
+
+function veiculoIdPorPlaca(
+  placa: string,
+  veiculos: { id: string; placa?: string | null }[],
+): string {
+  const alvo = compactPlaca(placa);
+  if (!alvo) return "";
+  return veiculos.find((v) => v.placa && compactPlaca(v.placa) === alvo)?.id ?? "";
+}
+
 export function RecebimentosManualSection() {
   const [searchParams] = useSearchParams();
   const clienteIdUrl = searchParams.get("clienteId")?.trim() || "";
@@ -74,25 +87,33 @@ export function RecebimentosManualSection() {
     emAberto: true,
     ativo: true,
     clienteId: clienteId || undefined,
-    placa: veiculoSel?.placa?.trim() || undefined,
   });
 
+  const despesasFiltradas = useMemo(() => {
+    const items = despesasQuery.data?.items ?? [];
+    if (!veiculoSel?.placa?.trim()) return items;
+    const pk = compactPlaca(veiculoSel.placa);
+    return items.filter((d) => placaDespesa(d) === pk);
+  }, [despesasQuery.data, veiculoSel?.placa]);
+
   const opcoesValor = useMemo(() => {
-    return (despesasQuery.data?.items ?? [])
+    return despesasFiltradas
       .map((d) => {
         const valor = valorDespesaCliente(d);
         if (valor <= 0) return null;
         const chave = d.autoInfracao?.trim() || d.id;
+        const placa = d.placa?.trim() || d.veiculoId?.trim() || "";
         return {
           id: chave,
           autoInfracao: chave,
+          placa,
           valor,
-          label: `${formatBrl(valor)} · ${d.descricao ?? d.categoria ?? chave}`,
+          label: `${formatBrl(valor)} · ${d.descricao ?? d.categoria ?? chave}${placa ? ` · ${placa}` : ""}`,
         };
       })
       .filter((o): o is NonNullable<typeof o> => o != null)
       .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
-  }, [despesasQuery.data]);
+  }, [despesasFiltradas]);
 
   const despesaSel = useMemo(() => {
     if (!valorOpcao || valorOpcao === VALOR_MANUAL) return null;
@@ -133,6 +154,26 @@ export function RecebimentosManualSection() {
   }, [placaUrl, veiculosQuery.data]);
 
   useEffect(() => {
+    if (!clienteId.trim() || veiculoId || !despesasQuery.data?.items.length || !veiculosQuery.data) {
+      return;
+    }
+    const placas = [
+      ...new Set(
+        despesasQuery.data.items.map(placaDespesa).filter(Boolean),
+      ),
+    ];
+    if (placas.length !== 1) return;
+    const id = veiculoIdPorPlaca(placas[0]!, veiculosQuery.data.items);
+    if (id) setVeiculoId(id);
+  }, [clienteId, veiculoId, despesasQuery.data, veiculosQuery.data]);
+
+  useEffect(() => {
+    if (!despesaSel?.placa || veiculoId || !veiculosQuery.data) return;
+    const id = veiculoIdPorPlaca(despesaSel.placa, veiculosQuery.data.items);
+    if (id) setVeiculoId(id);
+  }, [despesaSel, veiculoId, veiculosQuery.data]);
+
+  useEffect(() => {
     if (!despesaIdUrl || opcoesValor.length === 0) return;
     const item = opcoesValor.find((o) => o.id === despesaIdUrl);
     if (!item) return;
@@ -165,9 +206,22 @@ export function RecebimentosManualSection() {
     if (item) setValor(formatValorInput(item.valor));
   }
 
+  function placaBaixa(): string | null {
+    if (veiculoSel?.placa?.trim()) return veiculoSel.placa.trim();
+    if (despesaSel?.placa?.trim()) return despesaSel.placa.trim();
+    const pk = despesasFiltradas.map(placaDespesa).find(Boolean);
+    return pk ? formatPlacaFromCompact(pk) : null;
+  }
+
+  function formatPlacaFromCompact(pk: string): string {
+    if (pk.length === 7) return `${pk.slice(0, 3)}-${pk.slice(3)}`;
+    return pk;
+  }
+
   async function montarPlano() {
-    if (!veiculoSel?.placa?.trim()) {
-      setPlanoError("Selecione um veículo.");
+    const placa = placaBaixa();
+    if (!placa) {
+      setPlanoError("Selecione o cliente e uma pendência (ou o veículo).");
       return;
     }
     if (!clienteId.trim()) {
@@ -193,7 +247,7 @@ export function RecebimentosManualSection() {
         clienteQuery: clienteId.trim(),
         valor: valorNum,
         dataBr: dataBr.trim(),
-        placa: veiculoSel.placa.trim(),
+        placa,
         autoInfracaoAlvo: despesaSel?.autoInfracao,
       });
       setPlano(r.data);
@@ -239,17 +293,6 @@ export function RecebimentosManualSection() {
         submitLabel="Montar plano"
         error={planoError}
       >
-        <Field label="Veículo" hint="Placa usada na baixa — pode diferir do vínculo atual no cadastro">
-          <VeiculoSelect
-            value={veiculoId}
-            onChange={onVeiculoChange}
-            valueField="id"
-            ativo
-            required
-            disabled={loadingPlano}
-            variant="cadastro"
-          />
-        </Field>
         <Field label="Cliente">
           <ClienteSelect
             value={clienteId}
@@ -260,6 +303,19 @@ export function RecebimentosManualSection() {
             disabled={loadingPlano}
           />
         </Field>
+        <Field
+          label="Veículo"
+          hint="Opcional — preenchido automaticamente pelas pendências do cliente"
+        >
+          <VeiculoSelect
+            value={veiculoId}
+            onChange={onVeiculoChange}
+            valueField="id"
+            ativo
+            disabled={loadingPlano}
+            variant="cadastro"
+          />
+        </Field>
         <Field label="Data do crédito">
           <DateInput value={dataBr} onChange={setDataBr} required disabled={loadingPlano} />
         </Field>
@@ -267,9 +323,9 @@ export function RecebimentosManualSection() {
           label="Valor recebido (R$)"
           span="wide"
           hint={
-            clienteId && veiculoId
-              ? "Pendência em aberto sugere o valor — pode ajustar o recebido"
-              : "Selecione o veículo e o cliente para listar pendências"
+            clienteId
+              ? "Pendências em aberto do cliente — a placa é inferida da pendência"
+              : "Selecione o cliente para listar pendências"
           }
         >
           <div className="recebimentos-valor-campos">
@@ -277,10 +333,10 @@ export function RecebimentosManualSection() {
               value={valorOpcao}
               onChange={onValorOpcaoChange}
               variant="cadastro"
-              disabled={loadingPlano || !clienteId || !veiculoId || despesasQuery.isLoading}
-              loading={Boolean(clienteId && veiculoId && despesasQuery.isLoading)}
+              disabled={loadingPlano || !clienteId || despesasQuery.isLoading}
+              loading={Boolean(clienteId && despesasQuery.isLoading)}
               emptyLabel={
-                clienteId && veiculoId && !despesasQuery.isLoading && opcoesValor.length === 0
+                clienteId && !despesasQuery.isLoading && opcoesValor.length === 0
                   ? "Nenhuma pendência em aberto"
                   : undefined
               }
@@ -300,7 +356,7 @@ export function RecebimentosManualSection() {
               value={valor}
               onChange={(e) => setValor(e.target.value)}
               required
-              disabled={loadingPlano || !clienteId || !veiculoId}
+              disabled={loadingPlano || !clienteId}
               placeholder="0,00"
               aria-label="Valor recebido"
             />
