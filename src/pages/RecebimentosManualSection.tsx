@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Field, FormCard } from "@/components/FormCard";
 import { DateInput } from "@/components/DateInput";
 import { ClienteSelect, VeiculoSelect, NativeSelect } from "@/components/EntitySelects";
@@ -11,8 +11,6 @@ import { LanzaApiError } from "@/api/client";
 import type { LinhaPlanoBaixa, PlanoBaixa, ClienteDespesa } from "@/api/types";
 import { useRastreameEspelho } from "@/hooks/useRastreameEspelho";
 import { formatBrl, formatValorInput, parseValorInput } from "@/lib/format";
-
-const VALOR_MANUAL = "__manual__";
 
 const ROTULO_TIPO_BAIXA: Record<NonNullable<PlanoBaixa["tipoBaixa"]>, string> = {
   integral: "Baixa integral",
@@ -42,13 +40,9 @@ function placaDespesa(d: ClienteDespesa): string {
   return compactPlaca(String(d.placa ?? d.veiculoId ?? ""));
 }
 
-function veiculoIdPorPlaca(
-  placa: string,
-  veiculos: { id: string; placa?: string | null }[],
-): string {
-  const alvo = compactPlaca(placa);
-  if (!alvo) return "";
-  return veiculos.find((v) => v.placa && compactPlaca(v.placa) === alvo)?.id ?? "";
+function formatPlacaFromCompact(pk: string): string {
+  if (pk.length === 7) return `${pk.slice(0, 3)}-${pk.slice(3)}`;
+  return pk;
 }
 
 export function RecebimentosManualSection() {
@@ -63,13 +57,9 @@ export function RecebimentosManualSection() {
   const veiculosQuery = useVeiculos({ ativo: true });
   const [veiculoId, setVeiculoId] = useState("");
   const [clienteId, setClienteId] = useState(clienteIdUrl);
+  const [despesaId, setDespesaId] = useState("");
   const [dataBr, setDataBr] = useState(dataBrUrl);
-  const [valorOpcao, setValorOpcao] = useState(valorUrl ? VALOR_MANUAL : "");
-  const [valor, setValor] = useState(() => {
-    if (!valorUrl) return "";
-    const n = parseValorInput(valorUrl);
-    return n != null ? formatValorInput(n) : valorUrl;
-  });
+  const [valor, setValor] = useState("");
   const [loadingPlano, setLoadingPlano] = useState(false);
   const [planoError, setPlanoError] = useState<string | null>(null);
   const [plano, setPlano] = useState<PlanoBaixa | null>(null);
@@ -96,29 +86,29 @@ export function RecebimentosManualSection() {
     return items.filter((d) => placaDespesa(d) === pk);
   }, [despesasQuery.data, veiculoSel?.placa]);
 
-  const opcoesValor = useMemo(() => {
+  const opcoesDespesa = useMemo(() => {
     return despesasFiltradas
       .map((d) => {
-        const valor = valorDespesaCliente(d);
-        if (valor <= 0) return null;
+        const valorDevido = valorDespesaCliente(d);
+        if (valorDevido <= 0) return null;
         const chave = d.autoInfracao?.trim() || d.id;
         const placa = d.placa?.trim() || d.veiculoId?.trim() || "";
         return {
           id: chave,
           autoInfracao: chave,
           placa,
-          valor,
-          label: `${formatBrl(valor)} · ${d.descricao ?? d.categoria ?? chave}${placa ? ` · ${placa}` : ""}`,
+          valor: valorDevido,
+          label: `${formatBrl(valorDevido)} · ${d.descricao ?? d.categoria ?? chave}${placa ? ` · ${placa}` : ""}`,
         };
       })
       .filter((o): o is NonNullable<typeof o> => o != null)
       .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
   }, [despesasFiltradas]);
 
-  const despesaSel = useMemo(() => {
-    if (!valorOpcao || valorOpcao === VALOR_MANUAL) return null;
-    return opcoesValor.find((o) => o.id === valorOpcao) ?? null;
-  }, [valorOpcao, opcoesValor]);
+  const despesaSel = useMemo(
+    () => opcoesDespesa.find((o) => o.id === despesaId) ?? null,
+    [opcoesDespesa, despesaId],
+  );
 
   const despesaRegistro = useMemo(() => {
     if (!despesaSel) return null;
@@ -129,16 +119,16 @@ export function RecebimentosManualSection() {
     );
   }, [despesaSel, despesasFiltradas]);
 
-  const baixaPorDespesa = despesaSel != null;
-  const baixaManual = valorOpcao === VALOR_MANUAL;
-
   const valorParcialHint = useMemo(() => {
     if (!despesaSel) return null;
     const pago = parseValorInput(valor);
     if (pago == null) return null;
     const diff = Math.round((despesaSel.valor - pago) * 100) / 100;
-    if (diff < 0.01) return null;
-    return `Parcial: ${formatBrl(pago)} quitado + ${formatBrl(diff)} permanece em atraso na mesma pendência.`;
+    if (diff < 0.01) return "Baixa integral da pendência selecionada.";
+    if (pago > despesaSel.valor + 0.009) {
+      return `Máximo permitido: ${formatBrl(despesaSel.valor)} (valor da pendência).`;
+    }
+    return `Baixa parcial: ${formatBrl(pago)} quitado · ${formatBrl(diff)} permanece em aberto na mesma pendência.`;
   }, [despesaSel, valor]);
 
   useEffect(() => {
@@ -150,56 +140,26 @@ export function RecebimentosManualSection() {
   }, [dataBrUrl]);
 
   useEffect(() => {
-    if (!valorUrl) return;
-    setValorOpcao(VALOR_MANUAL);
-    const n = parseValorInput(valorUrl);
-    setValor(n != null ? formatValorInput(n) : valorUrl);
-  }, [valorUrl]);
-
-  useEffect(() => {
-    if (!placaUrl || baixaPorDespesa || !veiculosQuery.data) return;
+    if (!placaUrl || despesaSel || !veiculosQuery.data) return;
     const alvo = compactPlaca(placaUrl);
     const v = (veiculosQuery.data.items ?? []).find(
       (x) => x.placa && compactPlaca(x.placa) === alvo,
     );
     if (v) setVeiculoId(v.id);
-  }, [placaUrl, baixaPorDespesa, veiculosQuery.data]);
+  }, [placaUrl, despesaSel, veiculosQuery.data]);
 
   useEffect(() => {
-    if (
-      baixaPorDespesa ||
-      !clienteId.trim() ||
-      veiculoId ||
-      !despesasQuery.data?.items.length ||
-      !veiculosQuery.data
-    ) {
-      return;
-    }
-    const placas = [
-      ...new Set(
-        despesasQuery.data.items.map(placaDespesa).filter(Boolean),
-      ),
-    ];
-    if (placas.length !== 1) return;
-    const id = veiculoIdPorPlaca(placas[0]!, veiculosQuery.data.items);
-    if (id) setVeiculoId(id);
-  }, [baixaPorDespesa, clienteId, veiculoId, despesasQuery.data, veiculosQuery.data]);
-
-  useEffect(() => {
-    if (baixaPorDespesa) setVeiculoId("");
-  }, [baixaPorDespesa, despesaSel?.id]);
-
-  useEffect(() => {
-    if (!despesaIdUrl || opcoesValor.length === 0) return;
-    const item = opcoesValor.find((o) => o.id === despesaIdUrl);
+    if (!despesaIdUrl || opcoesDespesa.length === 0) return;
+    const item = opcoesDespesa.find((o) => o.id === despesaIdUrl);
     if (!item) return;
-    setValorOpcao(item.id);
-    setValor(formatValorInput(item.valor));
-  }, [despesaIdUrl, opcoesValor]);
+    setDespesaId(item.id);
+    const n = parseValorInput(valorUrl);
+    setValor(formatValorInput(n != null && n <= item.valor ? n : item.valor));
+  }, [despesaIdUrl, valorUrl, opcoesDespesa]);
 
   function onVeiculoChange(id: string) {
     setVeiculoId(id);
-    setValorOpcao("");
+    setDespesaId("");
     setValor("");
     if (!id || clienteId.trim()) return;
     const v = (veiculosQuery.data?.items ?? []).find((x) => x.id === id);
@@ -208,17 +168,20 @@ export function RecebimentosManualSection() {
 
   function onClienteChange(id: string) {
     setClienteId(id);
-    setValorOpcao("");
+    setDespesaId("");
     setValor("");
+    setVeiculoId("");
   }
 
-  function onValorOpcaoChange(opcao: string) {
-    setValorOpcao(opcao);
-    if (opcao === VALOR_MANUAL || !opcao) {
+  function onDespesaChange(id: string) {
+    setDespesaId(id);
+    setPlano(null);
+    setExecResult(null);
+    if (!id) {
       setValor("");
       return;
     }
-    const item = opcoesValor.find((o) => o.id === opcao);
+    const item = opcoesDespesa.find((o) => o.id === id);
     if (item) setValor(formatValorInput(item.valor));
   }
 
@@ -229,14 +192,7 @@ export function RecebimentosManualSection() {
       const bruta = String(despesaRegistro.placa ?? despesaRegistro.veiculoId ?? "").trim();
       if (bruta) return bruta;
     }
-    if (veiculoSel?.placa?.trim()) return veiculoSel.placa.trim();
-    const pk = despesasFiltradas.map(placaDespesa).find((p) => p.length === 7);
-    return pk ? formatPlacaFromCompact(pk) : null;
-  }
-
-  function formatPlacaFromCompact(pk: string): string {
-    if (pk.length === 7) return `${pk.slice(0, 3)}-${pk.slice(3)}`;
-    return pk;
+    return null;
   }
 
   async function montarPlano() {
@@ -244,22 +200,26 @@ export function RecebimentosManualSection() {
       setPlanoError("Selecione um cliente.");
       return;
     }
-    if (!baixaPorDespesa && !baixaManual) {
-      setPlanoError("Selecione uma pendência em aberto.");
+    if (!despesaSel) {
+      setPlanoError(
+        "Selecione uma pendência em aberto. Cadastre a despesa em Despesas → Cliente antes da baixa.",
+      );
       return;
     }
     const placa = placaBaixa();
     if (!placa) {
-      setPlanoError(
-        baixaManual
-          ? "Informe o veículo ou selecione uma pendência com placa."
-          : "A pendência selecionada não tem placa associada.",
-      );
+      setPlanoError("A pendência selecionada não tem placa associada.");
       return;
     }
     const valorNum = parseValorInput(valor);
-    if (valorNum == null) {
+    if (valorNum == null || valorNum <= 0) {
       setPlanoError("Informe o valor recebido.");
+      return;
+    }
+    if (valorNum > despesaSel.valor + 0.009) {
+      setPlanoError(
+        `Valor recebido (${formatBrl(valorNum)}) não pode ser maior que o devido (${formatBrl(despesaSel.valor)}).`,
+      );
       return;
     }
     if (!dataBr.trim()) {
@@ -277,7 +237,7 @@ export function RecebimentosManualSection() {
         valor: valorNum,
         dataBr: dataBr.trim(),
         placa,
-        autoInfracaoAlvo: despesaSel?.autoInfracao,
+        autoInfracaoAlvo: despesaSel.autoInfracao,
       });
       setPlano(r.data);
       setLinhasSel(new Set(r.data.linhas.map((l) => l.num)));
@@ -340,32 +300,39 @@ export function RecebimentosManualSection() {
           span="wide"
           hint={
             clienteId
-              ? baixaPorDespesa
-                ? `Placa ${placaBaixa() ?? "—"} · veículo não é necessário`
-                : "Selecione a despesa a quitar — só o cliente é obrigatório"
+              ? despesaSel
+                ? `Devido ${formatBrl(despesaSel.valor)} · placa ${placaBaixa() ?? "—"} · pode receber valor parcial (até o total)`
+                : opcoesDespesa.length === 0
+                  ? (
+                      <>
+                        Nenhuma pendência —{" "}
+                        <Link to="/despesas/cliente/novo">cadastre a despesa</Link> antes da baixa.
+                      </>
+                    )
+                  : "Selecione a despesa cadastrada a quitar"
               : "Selecione o cliente para listar pendências"
           }
         >
           <div className="recebimentos-valor-campos">
             <NativeSelect
-              value={valorOpcao}
-              onChange={onValorOpcaoChange}
+              value={despesaId}
+              onChange={onDespesaChange}
               variant="cadastro"
+              required
               disabled={loadingPlano || !clienteId || despesasQuery.isLoading}
               loading={Boolean(clienteId && despesasQuery.isLoading)}
               emptyLabel={
-                clienteId && !despesasQuery.isLoading && opcoesValor.length === 0
+                clienteId && !despesasQuery.isLoading && opcoesDespesa.length === 0
                   ? "Nenhuma pendência em aberto"
                   : undefined
               }
               aria-label="Pendência em aberto"
             >
-              {opcoesValor.map((o) => (
+              {opcoesDespesa.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
                 </option>
               ))}
-              <option value={VALOR_MANUAL}>Outro valor…</option>
             </NativeSelect>
             <input
               className="input"
@@ -374,25 +341,14 @@ export function RecebimentosManualSection() {
               value={valor}
               onChange={(e) => setValor(e.target.value)}
               required
-              disabled={loadingPlano || !clienteId}
+              disabled={loadingPlano || !clienteId || !despesaId}
               placeholder="0,00"
               aria-label="Valor recebido"
             />
           </div>
           {valorParcialHint ? <p className="field__hint">{valorParcialHint}</p> : null}
         </Field>
-        {baixaManual ? (
-          <Field label="Veículo" hint="Obrigatório apenas para baixa manual sem pendência">
-            <VeiculoSelect
-              value={veiculoId}
-              onChange={onVeiculoChange}
-              valueField="id"
-              ativo
-              disabled={loadingPlano}
-              variant="cadastro"
-            />
-          </Field>
-        ) : !baixaPorDespesa ? (
+        {!despesaSel ? (
           <Field label="Veículo (opcional)" hint="Filtrar pendências por placa">
             <VeiculoSelect
               value={veiculoId}

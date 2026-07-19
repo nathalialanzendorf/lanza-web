@@ -48,7 +48,7 @@ export function Field({
 }: {
   label: string;
   children: ReactNode;
-  hint?: string;
+  hint?: ReactNode;
   span?: "full" | "wide";
 }) {
   const spanClass = span === "full" ? "field--full" : span === "wide" ? "field--wide" : undefined;
