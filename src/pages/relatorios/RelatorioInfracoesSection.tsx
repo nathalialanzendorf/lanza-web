@@ -5,6 +5,7 @@ import { ClienteSelect, ParceiroSelect, VeiculoSelect, NativeSelect } from "@/co
 import { ResponsavelDebitoCell } from "@/components/relatorios/ResponsavelDebitoCell";
 import { SELECT_LABEL_TODOS } from "@/lib/selectLabels";
 import { QueryError } from "@/components/PageHeader";
+import { FlashError } from "@/context/ScreenFlashContext";
 import { ResultPanel } from "@/components/ResultPanel";
 import {
   PERIODO_VAZIO,
@@ -173,7 +174,7 @@ export function RelatorioInfracoesSection() {
         </button>
       </div>
 
-      {atribuirError ? <p className="form-card__error">{atribuirError}</p> : null}
+      <FlashError message={atribuirError} />
       <ResultPanel title="Inferência de responsáveis" data={atribuirResult} />
 
       {query.isError ? (

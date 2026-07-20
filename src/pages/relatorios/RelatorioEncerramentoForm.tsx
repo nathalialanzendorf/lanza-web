@@ -9,6 +9,7 @@ import { QueryError } from "@/components/PageHeader";
 import { RelatorioEntrega } from "@/components/relatorios/RelatorioEntrega";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Toggle } from "@/components/Toggle";
+import { FlashError } from "@/context/ScreenFlashContext";
 import { useContratos, useClientes } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
@@ -291,11 +292,7 @@ export function RelatorioEncerramentoForm() {
             />
           </Field>
         </div>
-        {error ? (
-          <div className="alert alert--error" role="alert">
-            {error}
-          </div>
-        ) : null}
+        <FlashError message={error} />
       </section>
 
       <RelatorioEntrega

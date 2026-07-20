@@ -8,6 +8,7 @@ import { QueryError } from "@/components/PageHeader";
 import { useSyncJobs, useSyncMeta } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
+import { FlashError } from "@/context/ScreenFlashContext";
 import { bodySyncGlobal, direcaoEfetiva, opcoesSyncCompleto, ordenarSyncsPorDirecao, syncAtivo } from "@/lib/syncUi";
 import { LABEL } from "@/lib/labels";
 import type { SyncCatalogEntry, SyncJob } from "@/api/types";
@@ -246,7 +247,7 @@ export function SyncExecutarSection() {
         />
       ) : null}
 
-      {error ? <p className="form-card__error">{error}</p> : null}
+      <FlashError message={error} />
 
       {metaQuery.isLoading ? (
         <p className="field__hint">A carregar syncs…</p>

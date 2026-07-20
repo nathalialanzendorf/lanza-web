@@ -9,6 +9,7 @@ import { Toggle } from "@/components/Toggle";
 import { useDespesasCliente } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
+import { FlashError } from "@/context/ScreenFlashContext";
 import type { LinhaPlanoBaixa, PlanoBaixa, ClienteDespesa } from "@/api/types";
 import { formatBrl, formatValorInput, parseValorInput } from "@/lib/format";
 
@@ -375,7 +376,7 @@ export function RecebimentosManualSection() {
           >
             {loadingExec ? "A aplicar…" : `Executar baixa (${linhasSel.size})`}
           </button>
-          {execError ? <p className="form-card__error">{execError}</p> : null}
+          <FlashError message={execError} />
         </section>
       ) : null}
 

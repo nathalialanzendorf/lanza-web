@@ -13,6 +13,7 @@ import { ResultPanel } from "@/components/ResultPanel";
 import { useContratos, useVeiculos, useVinculosParceiro } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
+import { FlashError } from "@/context/ScreenFlashContext";
 import { formatBrl, formatPlaca, formatVeiculoLabel } from "@/lib/format";
 import {
   calcularGanhosVeiculos,
@@ -301,7 +302,7 @@ export function RelatorioPrestacaoContasForm() {
             {temFiltro ? " (filtrados)" : ""}.
           </p>
         ) : null}
-        {error ? <p className="form-card__error">{error}</p> : null}
+        <FlashError message={error} />
       </section>
 
       {!modoAvancado ? (

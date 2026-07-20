@@ -8,6 +8,7 @@ import { ResultPanel } from "@/components/ResultPanel";
 import { Toggle } from "@/components/Toggle";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
+import { FlashError } from "@/context/ScreenFlashContext";
 import { formatBrl } from "@/lib/format";
 import type { RenegociacaoInput, RenegociacaoParcela, RenegociacaoPreview, RenegociacaoResumo } from "@/api/types";
 
@@ -388,8 +389,8 @@ export function RenegociacaoClientePanel({ clienteIdInicial = "", placaInicial =
             </button>
           </div>
 
-          {previewError ? <p className="form-card__error">{previewError}</p> : null}
-          {execError ? <p className="form-card__error">{execError}</p> : null}
+          <FlashError message={previewError} />
+          <FlashError message={execError} />
 
           {preview ? (
             <section className="form-card">

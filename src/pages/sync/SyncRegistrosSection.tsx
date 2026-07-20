@@ -9,6 +9,7 @@ import { ResponsavelDebitoCell } from "@/components/relatorios/ResponsavelDebito
 import { useDespesasCliente, useInfracoes, useSyncMeta, useVeiculos } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
+import { FlashError } from "@/context/ScreenFlashContext";
 import { CATEGORIA_ESTACIONAMENTO, isCategoriaEstacionamento } from "@/lib/estacionamentoLabels";
 import { formatBrl, formatPlaca } from "@/lib/format";
 import { CATEGORIA_PEDAGIO, isCategoriaPedagio } from "@/lib/pedagioLabels";
@@ -275,7 +276,7 @@ export function SyncRegistrosSection() {
         </button>
       </div>
 
-      {acaoError ? <p className="form-card__error">{acaoError}</p> : null}
+      <FlashError message={acaoError} />
       <ResultPanel title="Resultado sync" data={syncResult} />
       <ResultPanel title="Inferência de responsáveis" data={inferirResult} />
 

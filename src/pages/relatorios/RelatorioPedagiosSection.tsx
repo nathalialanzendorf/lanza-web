@@ -5,6 +5,7 @@ import { ClienteSelect, VeiculoSelect, NativeSelect } from "@/components/EntityS
 import { SELECT_LABEL_TODOS } from "@/lib/selectLabels";
 import { ResponsavelDebitoCell } from "@/components/relatorios/ResponsavelDebitoCell";
 import { QueryError } from "@/components/PageHeader";
+import { FlashError } from "@/context/ScreenFlashContext";
 import { ResultPanel } from "@/components/ResultPanel";
 import {
   PERIODO_VAZIO,
@@ -256,7 +257,7 @@ export function RelatorioPedagiosSection() {
         </button>
       </div>
 
-      {acaoError ? <p className="form-card__error">{acaoError}</p> : null}
+      <FlashError message={acaoError} />
       <AtribuicaoResumo data={atribuirResult} />
       <ResultPanel title="Detalhe inferência" data={atribuirResult} />
       <ResultPanel title="Sync pedágios" data={syncResult} />

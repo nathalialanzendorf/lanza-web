@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ClienteSelect, ParceiroSelect } from "@/components/EntitySelects";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
+import { FlashError } from "@/context/ScreenFlashContext";
 import { clienteIdDe } from "@/lib/clienteCampo";
 import {
   labelStatusResponsavel,
@@ -116,7 +117,7 @@ export function ResponsavelDebitoCell(props: Props) {
           {loading === "parceiro" ? "…" : "Confirmar parceiro"}
         </button>
       </div>
-      {error ? <p className="form-card__error">{error}</p> : null}
+      <FlashError message={error} />
     </div>
   );
 }

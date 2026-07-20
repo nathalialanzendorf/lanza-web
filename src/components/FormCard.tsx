@@ -1,5 +1,6 @@
 import type { FormEvent, ReactNode } from "react";
 
+import { useFlashFormMessages } from "@/context/ScreenFlashContext";
 import { LABEL } from "@/lib/labels";
 
 type Props = {
@@ -25,6 +26,8 @@ export function FormCard({
   error,
   success,
 }: Props) {
+  useFlashFormMessages(error, success);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     await onSubmit();
@@ -34,16 +37,6 @@ export function FormCard({
     <form className={["form-card", className].filter(Boolean).join(" ")} onSubmit={handleSubmit}>
       {title ? <h2 className="form-card__title">{title}</h2> : null}
       <div className="form-grid">{children}</div>
-      {success ? (
-        <div className="alert alert--success" role="status">
-          {success}
-        </div>
-      ) : null}
-      {error ? (
-        <div className="alert alert--error" role="alert">
-          {error}
-        </div>
-      ) : null}
       <button type="submit" className="btn btn--primary" disabled={loading || submitDisabled}>
         {loading ? LABEL.processando : submitLabel}
       </button>

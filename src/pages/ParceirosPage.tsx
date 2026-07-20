@@ -7,7 +7,7 @@ export function ParceirosPage() {
   return (
     <PageHeader
       title="Parceiros"
-      description="Proprietários dos veículos — listagem e cadastro com upload de CRLV."
+      description="Proprietários dos veículos — cadastre o parceiro aqui e o veículo em Veículos."
     >
       <Routes>
         <Route index element={<ParceirosListSection />} />

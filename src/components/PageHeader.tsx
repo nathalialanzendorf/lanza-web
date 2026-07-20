@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { FlashError } from "@/context/ScreenFlashContext";
+
 type Props = {
   title: string;
   description?: string;
@@ -24,13 +26,12 @@ export function PageHeader({ title, description, actions, children }: Props) {
 
 export function QueryError({ message }: { message: string }) {
   return (
-    <div className="alert alert--error" role="alert">
-      <strong>Erro ao carregar</strong>
-      <p>{message}</p>
-      <p className="alert__hint">
-        Verifique se a API está a correr (<code>npm run api:dev</code> na raiz do
-        Aworklanza) ou se a <code>X-API-Key</code> está correta.
-      </p>
-    </div>
+    <>
+      <FlashError message={`Erro ao carregar: ${message}`} />
+      <div className="panel">
+        Não foi possível carregar os dados. Verifique se a API está a correr ou se a chave API
+        está correta.
+      </div>
+    </>
   );
 }

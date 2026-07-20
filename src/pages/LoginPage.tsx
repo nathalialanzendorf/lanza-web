@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LanzaApiError } from "@/api/client";
 import { useAuth } from "@/context/AuthContext";
 import { BrandMark } from "@/components/BrandMark";
+import { FlashError } from "@/context/ScreenFlashContext";
 
 export function LoginPage() {
   const { login, registerAllowed } = useAuth();
@@ -45,7 +46,7 @@ export function LoginPage() {
         <h1>Entrar</h1>
         <p className="auth-card__desc">Use o seu e-mail e senha para aceder ao painel.</p>
 
-        {error ? <div className="alert alert--error">{error}</div> : null}
+        <FlashError message={error} />
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label className="auth-field">

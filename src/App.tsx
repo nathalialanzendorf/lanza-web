@@ -7,6 +7,7 @@ import { Layout } from "@/components/Layout";
 import { GuestRoute, ProtectedRoute } from "@/components/ProtectedRoute";
 
 import { AuthProvider } from "@/context/AuthContext";
+import { ScreenFlashProvider } from "@/context/ScreenFlashContext";
 
 import { ClientesPage } from "@/pages/ClientesPage";
 
@@ -73,6 +74,8 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
 
       <AuthProvider>
+
+        <ScreenFlashProvider>
 
         <BrowserRouter>
 
@@ -144,6 +147,8 @@ export default function App() {
           </Routes>
 
         </BrowserRouter>
+
+        </ScreenFlashProvider>
 
       </AuthProvider>
 

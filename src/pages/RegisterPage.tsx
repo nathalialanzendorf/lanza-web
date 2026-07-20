@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { LanzaApiError } from "@/api/client";
 import { useAuth } from "@/context/AuthContext";
 import { BrandMark } from "@/components/BrandMark";
+import { FlashError } from "@/context/ScreenFlashContext";
 
 export function RegisterPage() {
   const { register, registerAllowed } = useAuth();
@@ -69,7 +70,7 @@ export function RegisterPage() {
           Crie a primeira conta de administrador ou registe-se enquanto o registo estiver aberto.
         </p>
 
-        {error ? <div className="alert alert--error">{error}</div> : null}
+        <FlashError message={error} />
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label className="auth-field">

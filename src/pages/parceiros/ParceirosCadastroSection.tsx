@@ -21,9 +21,6 @@ export function ParceirosCadastroSection({ parceiroId }: Props) {
 
   const [nome, setNome] = useState("");
   const [ativo, setAtivo] = useState(true);
-  const [placa, setPlaca] = useState("");
-  const [marcaModelo, setMarcaModelo] = useState("");
-  const [cadastrarVeiculo, setCadastrarVeiculo] = useState(true);
   const [carregando, setCarregando] = useState(editando);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,8 +30,6 @@ export function ParceirosCadastroSection({ parceiroId }: Props) {
     if (typeof campos.proprietarioNome === "string" && campos.proprietarioNome.trim()) {
       setNome(campos.proprietarioNome.trim());
     }
-    if (typeof campos.placa === "string") setPlaca(campos.placa);
-    if (typeof campos.marcaModelo === "string") setMarcaModelo(campos.marcaModelo);
   }
 
   useEffect(() => {
@@ -74,24 +69,10 @@ export function ParceirosCadastroSection({ parceiroId }: Props) {
         setResult({ parceiro });
       } else {
         const parceiro = await lanzaApi.criarParceiro(nome.trim());
-        let veiculoResult: unknown = null;
-
-        if (cadastrarVeiculo && placa.trim()) {
-          veiculoResult = await lanzaApi.criarVeiculo({
-            placa: placa.trim(),
-            marcaModelo: marcaModelo.trim() || undefined,
-            parceiroNome: nome.trim(),
-            ativo: true,
-            origem: "web-upload-crlv-parceiro",
-          });
-        }
-
-        setResult({ parceiro, veiculo: veiculoResult });
+        setResult({ parceiro });
       }
 
       void qc.invalidateQueries({ queryKey: ["parceiros"] });
-      void qc.invalidateQueries({ queryKey: ["veiculos"] });
-      void qc.invalidateQueries({ queryKey: ["parceiros-vinculos"] });
       navigate("/parceiros");
     } catch (err) {
       setError(err instanceof LanzaApiError ? err.message : "Falha ao gravar parceiro.");
@@ -121,7 +102,7 @@ export function ParceirosCadastroSection({ parceiroId }: Props) {
         <DocUploadField
           label="CRLV (PDF)"
           tipo="crlv"
-          hint="O nome do proprietário no CRLV preenche o parceiro; placa e modelo opcionais para vincular veículo."
+          hint="Opcional: preenche o nome do proprietário a partir do CRLV. Cadastre o veículo em Veículos."
           disabled={loading}
           onParsed={({ campos }) => aplicarCrlv(campos)}
           onError={setError}
@@ -133,26 +114,6 @@ export function ParceirosCadastroSection({ parceiroId }: Props) {
           <Field label="Status" hint="Parceiro ativo na operação">
             <Toggle checked={ativo} onChange={setAtivo} disabled={loading} aria-label="Parceiro ativo" />
           </Field>
-        ) : null}
-        {!editando ? (
-          <>
-            <Toggle
-              className="field"
-              checked={cadastrarVeiculo}
-              onChange={setCadastrarVeiculo}
-              label="Cadastrar veículo do CRLV e vincular ao parceiro"
-            />
-            {cadastrarVeiculo ? (
-              <>
-                <Field label="Placa">
-                  <input className="input" value={placa} onChange={(e) => setPlaca(e.target.value)} />
-                </Field>
-                <Field label="Marca / modelo">
-                  <input className="input" value={marcaModelo} onChange={(e) => setMarcaModelo(e.target.value)} />
-                </Field>
-              </>
-            ) : null}
-          </>
         ) : null}
       </FormCard>
       <ResultPanel title="Resultado" data={result} />

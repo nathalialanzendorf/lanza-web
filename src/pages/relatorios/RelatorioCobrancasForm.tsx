@@ -12,6 +12,7 @@ import {
 } from "@/components/relatorios/RelatorioPeriodoFiltro";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
+import { FlashError } from "@/context/ScreenFlashContext";
 import { LABEL } from "@/lib/labels";
 import {
   downloadArquivoTexto,
@@ -189,7 +190,7 @@ export function RelatorioCobrancasForm() {
             Download PDF
           </button>
         </div>
-        {error ? <p className="form-card__error">{error}</p> : null}
+        <FlashError message={error} />
       </section>
 
       <CobrancasVisualizacao data={result} rotulos={rotulosTipo} />
