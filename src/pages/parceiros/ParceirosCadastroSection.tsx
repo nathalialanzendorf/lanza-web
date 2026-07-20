@@ -24,6 +24,7 @@ export function ParceirosCadastroSection({ parceiroId }: Props) {
   const [carregando, setCarregando] = useState(editando);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [result, setResult] = useState<unknown>(null);
 
   function aplicarCrlv(campos: Record<string, unknown>) {
@@ -63,16 +64,19 @@ export function ParceirosCadastroSection({ parceiroId }: Props) {
     }
     setLoading(true);
     setError(null);
+    setSuccess(null);
     try {
       if (editando) {
         const parceiro = await lanzaApi.atualizarParceiro(parceiroId!, { nome: nome.trim(), ativo });
         setResult({ parceiro });
+        setSuccess("Parceiro atualizado com sucesso.");
       } else {
         const parceiro = await lanzaApi.criarParceiro(nome.trim());
         setResult({ parceiro });
+        setSuccess("Parceiro cadastrado com sucesso.");
       }
 
-      void qc.invalidateQueries({ queryKey: ["parceiros"] });
+      await qc.invalidateQueries({ queryKey: ["parceiros"] });
       navigate("/parceiros");
     } catch (err) {
       setError(err instanceof LanzaApiError ? err.message : "Falha ao gravar parceiro.");
@@ -98,6 +102,7 @@ export function ParceirosCadastroSection({ parceiroId }: Props) {
         onSubmit={submit}
         loading={loading}
         error={error}
+        success={success}
       >
         <DocUploadField
           label="CRLV (PDF)"
