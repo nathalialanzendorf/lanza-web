@@ -1,6 +1,6 @@
 # Lanza Web
 
-Frontend React do painel operacional **Lanza Locações**. Consome a [Lanza API](https://github.com/nathalialanzendorf/lanza-locacoes) (`/api/docs`).
+Frontend React do painel operacional **Lanza Locações**. Consome a [Lanza API](https://github.com/nathalialanzendorf/lanza-locacoes-services) (`/api/docs`).
 
 ## Stack
 
@@ -13,11 +13,11 @@ Frontend React do painel operacional **Lanza Locações**. Consome a [Lanza API]
 
 ### 1. API (terminal 1)
 
-Clone e suba a API em [lanza-locacoes](https://github.com/nathalialanzendorf/lanza-locacoes):
+Clone e suba a API em [lanza-locacoes-services](https://github.com/nathalialanzendorf/lanza-locacoes-services):
 
 ```bash
-git clone https://github.com/nathalialanzendorf/lanza-locacoes.git
-cd lanza-locacoes
+git clone https://github.com/nathalialanzendorf/lanza-locacoes-services.git
+cd lanza-locacoes-services
 npm install
 npm run api:dev
 ```
@@ -27,8 +27,8 @@ A API fica em `http://127.0.0.1:3100` (documentação: `/api/docs`).
 ### 2. Frontend (terminal 2)
 
 ```bash
-git clone https://github.com/nathalialanzendorf/lanza-web.git
-cd lanza-web
+git clone https://github.com/nathalialanzendorf/lanza-locacoes-app.git
+cd lanza-locacoes-app
 npm install
 npm run dev
 ```
@@ -55,8 +55,8 @@ Resumo:
 
 | Projeto Vercel | Repositório | URL |
 |----------------|-------------|-----|
-| `lanza-web` | [lanza-web](https://github.com/nathalialanzendorf/lanza-web) | https://lanzalocacoes.vercel.app |
-| `lanza-locacoes` (API) | [lanza-locacoes](https://github.com/nathalialanzendorf/lanza-locacoes) | https://api.lanzalocacoes.vercel.app |
+| `lanza-locacoes-app` | [lanza-locacoes-app](https://github.com/nathalialanzendorf/lanza-locacoes-app) | https://lanzalocacoes.vercel.app |
+| `lanza-locacoes-services` (API) | [lanza-locacoes-services](https://github.com/nathalialanzendorf/lanza-locacoes-services) | https://api.lanzalocacoes.vercel.app |
 
 O frontend aponta para a API via `.env.production` (`VITE_API_BASE_URL`). A API aceita CORS do domínio do painel e reporta estado do PostgreSQL em `/health`.
 

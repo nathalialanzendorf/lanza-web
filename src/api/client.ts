@@ -8,7 +8,8 @@ const PRODUCTION_API_URL = "https://api.lanzalocacoes.vercel.app";
 function isLanzaFrontendHost(hostname: string): boolean {
   return (
     hostname === "lanzalocacoes.vercel.app" ||
-    /^lanzalocacoes[\w-]*\.vercel\.app$/.test(hostname)
+    /^lanzalocacoes[\w-]*\.vercel\.app$/.test(hostname) ||
+    /^lanza-locacoes-app[\w-]*\.vercel\.app$/.test(hostname)
   );
 }
 

@@ -15,19 +15,19 @@
 
 ## URLs de produção
 
-| Componente | URL |
-|------------|-----|
-| **Frontend** | https://lanzalocacoes.vercel.app |
-| **API** | https://api.lanzalocacoes.vercel.app |
-| **Docs** | https://api.lanzalocacoes.vercel.app/api/docs |
+| Componente | Projeto Vercel | URL |
+|------------|----------------|-----|
+| **Frontend** | `lanza-locacoes-app` | https://lanzalocacoes.vercel.app |
+| **API** | `lanza-locacoes-services` | https://api.lanzalocacoes.vercel.app |
+| **Docs** | (API) | https://api.lanzalocacoes.vercel.app/api/docs |
 
-## Variáveis — projeto API (`lanza-locacoes`)
+## Variáveis — projeto API (`lanza-locacoes-services`)
 
-Valores exatos: **[docs/vercel-env-api.md](../docs/vercel-env-api.md)** ou `.\scripts\set-vercel-postgres-env.ps1`
+Valores exatos: **[docs/vercel-env-api.md](https://github.com/nathalialanzendorf/lanza-locacoes-services/blob/main/docs/vercel-env-api.md)** ou `.\scripts\set-vercel-postgres-env.ps1` no repo da API.
 
 | Variável | Valor |
 |----------|-------|
-| `LANZA_DB_BACKEND` | `dual` ou `postgres` |
+| `LANZA_DB_BACKEND` | `postgres` *(produção)* ou `dual` |
 | `PGHOST` | `aws-pg-lanza-locacoes.cluster-c856s8wi6jzs.us-east-1.rds.amazonaws.com` |
 | `PGPORT` | `5432` |
 | `PGDATABASE` | `postgres` |
@@ -38,7 +38,7 @@ Valores exatos: **[docs/vercel-env-api.md](../docs/vercel-env-api.md)** ou `.\sc
 | `LANZA_WEB_URL` | `https://lanzalocacoes.vercel.app` |
 | `LANZA_API_PUBLIC_URL` | `https://api.lanzalocacoes.vercel.app` |
 
-## Variáveis — projeto Frontend (`lanza-web`)
+## Variáveis — projeto Frontend (`lanza-locacoes-app`)
 
 | Variável | Valor |
 |----------|-------|
