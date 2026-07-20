@@ -19,6 +19,7 @@ import {
   type RelatorioModoEntrega,
 } from "@/lib/relatorioDownload";
 import { formatPlaca, clienteExibicaoPorId } from "@/lib/format";
+import { mensagemErroApi, mensagemSucessoEncerramento } from "@/lib/encerramentoFeedback";
 import type { Contrato } from "@/api/types";
 
 type EncerramentoPayload = {
@@ -65,8 +66,8 @@ export function RelatorioEncerramentoForm() {
   const [motivo, setMotivo] = useState<MotivoEncerramento>("devolvido");
   const [quebraContrato, setQuebraContrato] = useState(false);
   const [loadingEncerrar, setLoadingEncerrar] = useState(false);
-  const [encerrarResult, setEncerrarResult] = useState<unknown>(null);
   const [encerrarError, setEncerrarError] = useState<string | null>(null);
+  const [encerrarSuccess, setEncerrarSuccess] = useState<string | null>(null);
 
   const query = useContratos({
     status: "ativo",
@@ -100,9 +101,9 @@ export function RelatorioEncerramentoForm() {
   function selecionarContrato(contrato: Contrato) {
     setContratoSelecionadoId(contrato.id);
     setResult(null);
-    setEncerrarResult(null);
     setError(null);
     setEncerrarError(null);
+    setEncerrarSuccess(null);
   }
 
   async function entregar(modo: RelatorioModoEntrega) {
@@ -132,7 +133,7 @@ export function RelatorioEncerramentoForm() {
         downloadPdfViaImpressao(nome, texto);
       }
     } catch (err) {
-      setError(err instanceof LanzaApiError ? err.message : err instanceof Error ? err.message : "Falha ao calcular encerramento.");
+      setError(mensagemErroApi(err, "Falha ao calcular encerramento."));
     } finally {
       setLoading(false);
     }
@@ -149,6 +150,7 @@ export function RelatorioEncerramentoForm() {
     }
     setLoadingEncerrar(true);
     setEncerrarError(null);
+    setEncerrarSuccess(null);
     try {
       const r = await lanzaApi.encerrarContrato({
         idOuPasta: contratoSelecionado.id,
@@ -156,13 +158,13 @@ export function RelatorioEncerramentoForm() {
         motivoEncerramento: motivo,
         quebraContrato: motivo === "troca" ? false : quebraContrato,
       });
-      setEncerrarResult(r.data);
+      setEncerrarSuccess(mensagemSucessoEncerramento(r.data));
       setContratoSelecionadoId(null);
       void qc.invalidateQueries({ queryKey: ["contratos"] });
       void qc.invalidateQueries({ queryKey: ["clientes"] });
       void qc.invalidateQueries({ queryKey: ["veiculos"] });
     } catch (err) {
-      setEncerrarError(err instanceof LanzaApiError ? err.message : "Falha ao encerrar contrato.");
+      setEncerrarError(mensagemErroApi(err, "Falha ao encerrar contrato."));
     } finally {
       setLoadingEncerrar(false);
     }
@@ -289,7 +291,11 @@ export function RelatorioEncerramentoForm() {
             />
           </Field>
         </div>
-        {error ? <p className="form-card__error">{error}</p> : null}
+        {error ? (
+          <div className="alert alert--error" role="alert">
+            {error}
+          </div>
+        ) : null}
       </section>
 
       <RelatorioEntrega
@@ -315,6 +321,7 @@ export function RelatorioEncerramentoForm() {
         submitDisabled={!contratoSelecionado}
         submitLabel="Encerrar contrato no database"
         error={encerrarError}
+        success={encerrarSuccess}
       >
         <Field label="Data de encerramento" hint="Usa a mesma data do acerto acima">
           <DateInput value={dataEncerramento} onChange={setDataEncerramento} required disabled={loadingEncerrar} />
@@ -345,8 +352,6 @@ export function RelatorioEncerramentoForm() {
           ) : null}
         </Field>
       </FormCard>
-
-      <ResultPanel title="Contrato encerrado" data={encerrarResult} />
     </>
   );
 }

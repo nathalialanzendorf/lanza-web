@@ -11,6 +11,7 @@ type Props = {
   submitDisabled?: boolean;
   submitLabel?: string;
   error?: string | null;
+  success?: string | null;
 };
 
 export function FormCard({
@@ -22,6 +23,7 @@ export function FormCard({
   submitDisabled,
   submitLabel = LABEL.salvar,
   error,
+  success,
 }: Props) {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -32,7 +34,16 @@ export function FormCard({
     <form className={["form-card", className].filter(Boolean).join(" ")} onSubmit={handleSubmit}>
       {title ? <h2 className="form-card__title">{title}</h2> : null}
       <div className="form-grid">{children}</div>
-      {error ? <p className="form-card__error">{error}</p> : null}
+      {success ? (
+        <div className="alert alert--success" role="status">
+          {success}
+        </div>
+      ) : null}
+      {error ? (
+        <div className="alert alert--error" role="alert">
+          {error}
+        </div>
+      ) : null}
       <button type="submit" className="btn btn--primary" disabled={loading || submitDisabled}>
         {loading ? LABEL.processando : submitLabel}
       </button>

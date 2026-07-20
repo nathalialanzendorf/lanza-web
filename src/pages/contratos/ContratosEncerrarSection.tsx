@@ -8,11 +8,11 @@ import { Field, FormCard } from "@/components/FormCard";
 import { Toggle } from "@/components/Toggle";
 import { DateInput } from "@/components/DateInput";
 import { QueryError } from "@/components/PageHeader";
-import { ResultPanel } from "@/components/ResultPanel";
 import { useContratos, useClientes } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
 import { formatPlaca, clienteExibicaoPorId } from "@/lib/format";
+import { mensagemErroApi, mensagemSucessoEncerramento } from "@/lib/encerramentoFeedback";
 import type { Contrato } from "@/api/types";
 
 type MotivoEncerramento = "devolvido" | "recuperado" | "troca";
@@ -35,7 +35,7 @@ export function ContratosEncerrarSection() {
   const [quebraContrato, setQuebraContrato] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<unknown>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const query = useContratos({
     status: "ativo",
@@ -79,8 +79,8 @@ export function ContratosEncerrarSection() {
 
   function selecionarContrato(contrato: Contrato) {
     setContratoSelecionadoId(contrato.id);
-    setResult(null);
     setError(null);
+    setSuccess(null);
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -102,6 +102,7 @@ export function ContratosEncerrarSection() {
     }
     setLoading(true);
     setError(null);
+    setSuccess(null);
     try {
       const r = await lanzaApi.encerrarContrato({
         idOuPasta: contratoSelecionado.id,
@@ -109,7 +110,7 @@ export function ContratosEncerrarSection() {
         motivoEncerramento: motivo,
         quebraContrato: motivo === "troca" ? false : quebraContrato,
       });
-      setResult(r.data);
+      setSuccess(mensagemSucessoEncerramento(r.data));
       setContratoSelecionadoId(null);
       setSearchParams(
         (prev) => {
@@ -123,7 +124,7 @@ export function ContratosEncerrarSection() {
       void qc.invalidateQueries({ queryKey: ["clientes"] });
       void qc.invalidateQueries({ queryKey: ["veiculos"] });
     } catch (err) {
-      setError(err instanceof LanzaApiError ? err.message : "Falha ao encerrar contrato.");
+      setError(mensagemErroApi(err, "Falha ao encerrar contrato."));
     } finally {
       setLoading(false);
     }
@@ -230,6 +231,7 @@ export function ContratosEncerrarSection() {
         submitDisabled={!contratoSelecionado}
         submitLabel="Encerrar contrato"
         error={error}
+        success={success}
       >
         <Field label="Data de encerramento">
           <DateInput value={dataEncerramento} onChange={setDataEncerramento} required disabled={loading} />
@@ -260,8 +262,6 @@ export function ContratosEncerrarSection() {
           ) : null}
         </Field>
       </FormCard>
-
-      <ResultPanel title="Contrato encerrado" data={result} />
     </>
   );
 }

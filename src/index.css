@@ -641,6 +641,17 @@ code {
   color: #7f1d1d;
 }
 
+.alert--success {
+  background: var(--ok-soft);
+  border: 1px solid #bbf7d0;
+  color: #14532d;
+}
+
+.alert--success p,
+.alert--error p {
+  margin: 0.35rem 0 0;
+}
+
 .alert__hint {
   margin: 0.5rem 0 0;
   font-size: 0.9rem;
