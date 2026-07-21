@@ -95,7 +95,13 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     init.signal = AbortSignal.timeout(options.timeoutMs);
   }
 
-  const res = await fetch(buildUrl(path, options.params), init);
+  let res: Response;
+  try {
+    res = await fetch(buildUrl(path, options.params), init);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Falha na ligação à API";
+    throw new LanzaApiError(0, msg || "Sem ligação à API");
+  }
   const text = await res.text();
   let payload: unknown = null;
   if (text) {
@@ -108,7 +114,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   if (!res.ok) {
     const message =
-      (payload as ApiError | null)?.error ?? `Erro HTTP ${res.status}`;
+      (payload as ApiError | null)?.error ??
+      (res.status ? `Erro HTTP ${res.status}` : "Erro sem status code");
     throw new LanzaApiError(res.status, message);
   }
 
