@@ -13,6 +13,7 @@ import { LanzaApiError } from "@/api/client";
 import { FlashError } from "@/context/ScreenFlashContext";
 import type { LinhaPlanoBaixa, PlanoBaixa, ClienteDespesa } from "@/api/types";
 import { formatBrl, formatValorInput, parseValorInput } from "@/lib/format";
+import { despesaElegivelBaixaCliente } from "@/lib/despesaClienteStatus";
 
 const ROTULO_TIPO_BAIXA: Record<NonNullable<PlanoBaixa["tipoBaixa"]>, string> = {
   integral: "Baixa integral",
@@ -76,10 +77,11 @@ export function RecebimentosManualSection() {
     { enabled: Boolean(clienteSelecionado) },
   );
   const loadingDespesas =
-    Boolean(clienteSelecionado) && (despesasQuery.isLoading || despesasQuery.isFetching);
+    Boolean(clienteSelecionado) && despesasQuery.isLoading && !despesasQuery.data;
 
   const opcoesDespesa = useMemo(() => {
     return (despesasQuery.data?.items ?? [])
+      .filter((d) => despesaElegivelBaixaCliente(d))
       .map((d) => {
         const valorDevido = valorDespesaCliente(d);
         if (valorDevido <= 0) return null;

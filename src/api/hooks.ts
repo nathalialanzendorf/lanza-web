@@ -69,6 +69,7 @@ export function useDespesasCliente(
     queryKey: ["despesas-cliente", params],
     queryFn: () => lanzaApi.listarDespesasCliente(params),
     enabled: options?.enabled ?? true,
+    staleTime: 30_000,
   });
 }
 
