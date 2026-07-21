@@ -390,13 +390,13 @@ export type RenegociacaoDebito = {
 };
 
 export type RenegociacaoResumo = {
-  motoristaKey: string;
-  rastreavelKey: string;
+  motoristaKey?: string;
+  rastreavelKey?: string;
   clienteId?: string;
   placa?: string;
-  fonte?: "rastreame" | "local";
-  rastreameConfigurado?: boolean;
-  aviso?: string;
+  /** Próximo código [NEGOCIADO X] — sequencial por cliente, inicia em 1. */
+  negociacaoCodigo?: string;
+  fonte?: "local";
   total: number;
   soma: number;
   debitos: RenegociacaoDebito[];
@@ -412,14 +412,18 @@ export type RenegociacaoParcela = {
 };
 
 export type RenegociacaoInput = {
-  negociacaoCodigo: string;
+  /** Omitir para a API gerar automaticamente (sequencial por cliente). */
+  negociacaoCodigo?: string;
+  clienteId?: string;
+  placa?: string;
   gastosIds: Array<string | number>;
-  motoristaKey: string;
-  rastreavelKey: string;
+  motoristaKey?: string;
+  rastreavelKey?: string;
   parcelas: RenegociacaoParcela[];
 };
 
 export type RenegociacaoPreview = {
+  negociacaoCodigo?: string;
   debitos: Array<{ id: string | number; total: number; info: string }>;
   totalDebitos: number;
   parcelas: RenegociacaoParcela[];

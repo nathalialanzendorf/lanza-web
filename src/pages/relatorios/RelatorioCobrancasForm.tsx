@@ -113,7 +113,7 @@ export function RelatorioCobrancasForm() {
               disabled={loading || Boolean(clienteId)}
             />
           </Field>
-          <Field label="Cliente" hint="Opcional — exclui filtro por veículo">
+          <Field label="Cliente" hint="Opcional — inclui ex-locatários; exclui filtro por veículo">
             <ClienteSelect
               value={clienteId}
               onChange={onClienteChange}

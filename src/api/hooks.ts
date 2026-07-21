@@ -73,6 +73,18 @@ export function useDespesasCliente(
   });
 }
 
+export function useRenegociacaoResumo(
+  params?: { clienteId?: string; placa?: string },
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: ["renegociacao-resumo", params],
+    queryFn: () => lanzaApi.resumoRenegociacao(params ?? {}),
+    enabled: options?.enabled ?? Boolean(params?.clienteId?.trim()),
+    staleTime: 30_000,
+  });
+}
+
 export function useDespesasParceiro(params?: {
   emAberto?: boolean;
   ativo?: boolean;

@@ -192,8 +192,14 @@ export const lanzaApi = {
   }) => apiRequest<RenegociacaoResumo>("/api/renegociacao/resumo", { params }),
   previewRenegociacao: (body: RenegociacaoInput) =>
     apiRequest<RenegociacaoPreview>("/api/renegociacao/preview", { method: "POST", body }),
+  salvarRenegociacao: (body: RenegociacaoInput) =>
+    apiRequest<{ preview: RenegociacaoPreview; resultado: unknown; salvo: boolean }>(
+      "/api/renegociacao/executar",
+      { method: "POST", body },
+    ),
+  /** @deprecated use salvarRenegociacao */
   executarRenegociacao: (body: RenegociacaoInput) =>
-    apiRequest<{ preview: RenegociacaoPreview; resultado: unknown; executado: boolean }>(
+    apiRequest<{ preview: RenegociacaoPreview; resultado: unknown; salvo: boolean }>(
       "/api/renegociacao/executar",
       { method: "POST", body },
     ),

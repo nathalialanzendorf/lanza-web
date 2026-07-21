@@ -1,16 +1,18 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { DataTable } from "@/components/DataTable";
-import { Field, FormCard } from "@/components/FormCard";
+import { Field } from "@/components/FormCard";
 import { DateInput } from "@/components/DateInput";
 import { ClienteSelect, VeiculoSelect } from "@/components/EntitySelects";
+import { QueryError } from "@/components/PageHeader";
 import { ResultPanel } from "@/components/ResultPanel";
 import { Toggle } from "@/components/Toggle";
 import { lanzaApi } from "@/api/endpoints";
+import { useRenegociacaoResumo } from "@/api/hooks";
 import { LanzaApiError } from "@/api/client";
 import { FlashError } from "@/context/ScreenFlashContext";
 import { formatBrl } from "@/lib/format";
-import type { RenegociacaoInput, RenegociacaoParcela, RenegociacaoPreview, RenegociacaoResumo } from "@/api/types";
+import type { RenegociacaoInput, RenegociacaoParcela, RenegociacaoPreview } from "@/api/types";
 
 type Props = {
   clienteIdInicial?: string;
@@ -62,15 +64,10 @@ export function RenegociacaoClientePanel({ clienteIdInicial = "", placaInicial =
 
   const [clienteId, setClienteId] = useState(clienteIdInicial);
   const [placa, setPlaca] = useState(placaInicial);
-  const [apenasVencidos, setApenasVencidos] = useState(true);
-  const [negociacaoCodigo, setNegociacaoCodigo] = useState("1");
   const [numParcelas, setNumParcelas] = useState("3");
   const [primeiraParcela, setPrimeiraParcela] = useState(hojeIso());
   const [intervaloDias, setIntervaloDias] = useState("7");
 
-  const [loadingResumo, setLoadingResumo] = useState(false);
-  const [resumoError, setResumoError] = useState<string | null>(null);
-  const [resumo, setResumo] = useState<RenegociacaoResumo | null>(null);
   const [selIds, setSelIds] = useState<Set<string>>(new Set());
   const [parcelas, setParcelas] = useState<RenegociacaoParcela[]>([]);
 
@@ -81,6 +78,30 @@ export function RenegociacaoClientePanel({ clienteIdInicial = "", placaInicial =
   const [loadingExec, setLoadingExec] = useState(false);
   const [execError, setExecError] = useState<string | null>(null);
   const [execResult, setExecResult] = useState<unknown>(null);
+
+  const filtroParams = useMemo(
+    () => ({
+      clienteId: clienteId.trim() || undefined,
+      placa: placa.trim() || undefined,
+    }),
+    [clienteId, placa],
+  );
+
+  const resumoQuery = useRenegociacaoResumo(filtroParams, {
+    enabled: Boolean(filtroParams.clienteId),
+  });
+  const resumo = resumoQuery.data ?? null;
+
+  useEffect(() => {
+    if (!resumo) return;
+    setSelIds(new Set(resumo.debitos.map((d) => String(d.id))));
+    const qtd = Math.max(1, Number(numParcelas) || 1);
+    setParcelas(
+      gerarParcelasIguais(resumo.soma, qtd, primeiraParcela, Math.max(1, Number(intervaloDias) || 7)),
+    );
+    setPreview(null);
+    setExecResult(null);
+  }, [resumo]);
 
   const totalSelecionado = useMemo(() => {
     if (!resumo) return 0;
@@ -96,41 +117,14 @@ export function RenegociacaoClientePanel({ clienteIdInicial = "", placaInicial =
       return Number.isFinite(n) && String(n) === id ? n : id;
     });
     return {
-      negociacaoCodigo: negociacaoCodigo.trim(),
+      negociacaoCodigo: resumo.negociacaoCodigo,
+      clienteId: resumo.clienteId ?? (clienteId.trim() || undefined),
+      placa: placa.trim() || resumo.placa || undefined,
       gastosIds,
       motoristaKey: resumo.motoristaKey,
       rastreavelKey: resumo.rastreavelKey,
       parcelas,
     };
-  }
-
-  async function carregarResumo() {
-    if (!clienteId.trim() || !placa.trim()) {
-      setResumoError("Selecione cliente e placa.");
-      return;
-    }
-    setLoadingResumo(true);
-    setResumoError(null);
-    setResumo(null);
-    setPreview(null);
-    setExecResult(null);
-    try {
-      const r = await lanzaApi.resumoRenegociacao({
-        clienteId: clienteId.trim(),
-        placa: placa.trim(),
-        apenasVencidos,
-      });
-      setResumo(r);
-      setSelIds(new Set(r.debitos.map((d) => String(d.id))));
-      const qtd = Math.max(1, Number(numParcelas) || 1);
-      setParcelas(
-        gerarParcelasIguais(r.soma, qtd, primeiraParcela, Math.max(1, Number(intervaloDias) || 7)),
-      );
-    } catch (err) {
-      setResumoError(err instanceof LanzaApiError ? err.message : "Falha ao carregar débitos.");
-    } finally {
-      setLoadingResumo(false);
-    }
   }
 
   function toggleDebito(id: string | number) {
@@ -163,10 +157,6 @@ export function RenegociacaoClientePanel({ clienteIdInicial = "", placaInicial =
       setPreviewError("Selecione ao menos um débito.");
       return;
     }
-    if (!input.negociacaoCodigo) {
-      setPreviewError("Informe o código da negociação.");
-      return;
-    }
     if (input.parcelas.length === 0) {
       setPreviewError("Gere as parcelas antes do preview.");
       return;
@@ -183,21 +173,26 @@ export function RenegociacaoClientePanel({ clienteIdInicial = "", placaInicial =
     }
   }
 
-  async function executar() {
+  async function salvar() {
     const input = montarInput();
     if (!input) return;
-    if (!window.confirm("Confirmar renegociação no Rastreame? Esta ação grava no Gastos Gerais.")) {
+    if (
+      !window.confirm(
+        "Confirmar renegociação? Os débitos serão marcados e as parcelas gravadas no cadastro.",
+      )
+    ) {
       return;
     }
     setLoadingExec(true);
     setExecError(null);
     try {
-      const r = await lanzaApi.executarRenegociacao(input);
+      const r = await lanzaApi.salvarRenegociacao(input);
       setExecResult(r);
       setPreview(r.preview);
       void qc.invalidateQueries({ queryKey: ["despesas-cliente"] });
+      void qc.invalidateQueries({ queryKey: ["renegociacao-resumo"] });
     } catch (err) {
-      setExecError(err instanceof LanzaApiError ? err.message : "Falha ao executar renegociação.");
+      setExecError(err instanceof LanzaApiError ? err.message : "Falha ao salvar renegociação.");
     } finally {
       setLoadingExec(false);
     }
@@ -205,94 +200,85 @@ export function RenegociacaoClientePanel({ clienteIdInicial = "", placaInicial =
 
   return (
     <section className="reneg-panel">
-      <h2 className="form-card__title">Renegociação de débitos vencidos</h2>
-      <p className="field__hint reneg-panel__intro">
-        Marca débitos antigos com <code>[NEGOCIADO X]</code> no Rastreame e cria parcelas{" "}
-        <code>DOCUMENTACAO</code>. Requer sync-cliente e sync-veículo com chaves Rastreame.
-      </p>
+      <h2 className="form-card__title">Renegociação de débitos</h2>
 
-      <FormCard
-        title="1. Cliente e veículo"
-        onSubmit={carregarResumo}
-        loading={loadingResumo}
-        submitLabel="Carregar débitos"
-        error={resumoError}
-      >
-        <Field label="Cliente">
-          <ClienteSelect
-            value={clienteId}
-            onChange={(v) => {
-              setClienteId(v);
-              setResumo(null);
-              setPreview(null);
-            }}
-            ativo
-            variant="cadastro"
-            required
-          />
-        </Field>
-        <Field label="Veículo" hint="Placa da renegociação — independente do vínculo no cadastro">
-          <VeiculoSelect
-            value={placa}
-            onChange={(v) => {
-              setPlaca(v);
-              setResumo(null);
-              setPreview(null);
-            }}
-            ativo
-            variant="cadastro"
-            required
-          />
-        </Field>
-        <Toggle
-          className="field"
-          checked={apenasVencidos}
-          onChange={setApenasVencidos}
-          label="Só débitos vencidos (ATRASADO ou data passada)"
+      <section className="form-card">
+        <h2 className="form-card__title">Filtros</h2>
+        <div className="form-grid">
+          <label className="field">
+            <span className="field__label">Veículo</span>
+            <VeiculoSelect
+              value={placa}
+              onChange={setPlaca}
+              clienteId={clienteId || undefined}
+              variant="filtro"
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">Cliente</span>
+            <ClienteSelect value={clienteId} onChange={setClienteId} variant="filtro" />
+          </label>
+        </div>
+        {!resumoQuery.isLoading && resumo && filtroParams.clienteId ? (
+          <p className="field__hint">
+            {resumo.total} débito{resumo.total === 1 ? "" : "s"} elegível
+            {resumo.total === 1 ? "" : "is"} · {formatBrl(resumo.soma)}
+          </p>
+        ) : null}
+      </section>
+
+      {resumoQuery.isError ? (
+        <QueryError
+          message={
+            resumoQuery.error instanceof LanzaApiError
+              ? resumoQuery.error.message
+              : "Falha ao consultar débitos."
+          }
         />
-      </FormCard>
+      ) : null}
 
-      {resumo ? (
+      {filtroParams.clienteId ? (
         <>
-          {resumo.aviso ? <p className="field__hint badge badge--warn">{resumo.aviso}</p> : null}
           <section className="form-card">
-            <h2 className="form-card__title">
-              2. Débitos {resumo.fonte === "local" ? "no cadastro" : "no Rastreame"} ({resumo.total}) ·{" "}
-              {formatBrl(resumo.soma)}
-            </h2>
-            {resumo.debitos.length === 0 ? (
-              <p className="field__hint">Nenhum débito elegível para renegociação.</p>
-            ) : (
-              <DataTable
-                rows={resumo.debitos}
-                keyFn={(d) => String(d.id)}
-                columns={[
-                  {
-                    key: "sel",
-                    header: "",
-                    sortable: false,
-                    render: (d) => (
-                      <Toggle
-                        checked={selIds.has(String(d.id))}
-                        onChange={() => toggleDebito(d.id)}
-                        size="compact"
-                        aria-label={`Selecionar débito ${d.id}`}
-                      />
-                    ),
-                  },
-                  { key: "id", header: "ID", sortValue: (d) => String(d.id), render: (d) => String(d.id) },
-                  { key: "data", header: "Data", sortValue: (d) => formatDataDebito(d.data), render: (d) => formatDataDebito(d.data) },
-                  { key: "info", header: "Descrição", sortValue: (d) => d.info, render: (d) => d.info },
-                  { key: "tipo", header: "Tipo", sortValue: (d) => d.tipo ?? "", render: (d) => d.tipo ?? "—" },
-                  {
-                    key: "total",
-                    header: "Total",
-                    className: "num",
-                    sortValue: (d) => d.total,
-                    render: (d) => formatBrl(d.total),
-                  },
-                ]}
-                footer={
+            <h2 className="form-card__title">Débitos no cadastro</h2>
+            <DataTable
+              loading={resumoQuery.isLoading}
+              rows={resumo?.debitos ?? []}
+              keyFn={(d) => String(d.id)}
+              emptyMessage="Nenhum débito elegível para renegociação."
+              columns={[
+                {
+                  key: "sel",
+                  header: "",
+                  sortable: false,
+                  render: (d) => (
+                    <Toggle
+                      checked={selIds.has(String(d.id))}
+                      onChange={() => toggleDebito(d.id)}
+                      size="compact"
+                      aria-label={`Selecionar débito ${d.id}`}
+                    />
+                  ),
+                },
+                { key: "id", header: "ID", sortValue: (d) => String(d.id), render: (d) => String(d.id) },
+                {
+                  key: "data",
+                  header: "Data",
+                  sortValue: (d) => formatDataDebito(d.data),
+                  render: (d) => formatDataDebito(d.data),
+                },
+                { key: "info", header: "Descrição", sortValue: (d) => d.info, render: (d) => d.info },
+                { key: "tipo", header: "Tipo", sortValue: (d) => d.tipo ?? "", render: (d) => d.tipo ?? "—" },
+                {
+                  key: "total",
+                  header: "Total",
+                  className: "num",
+                  sortValue: (d) => d.total,
+                  render: (d) => formatBrl(d.total),
+                },
+              ]}
+              footer={
+                resumo && resumo.debitos.length > 0 ? (
                   <tr>
                     <td colSpan={5}>
                       <strong>Selecionados</strong>
@@ -301,118 +287,123 @@ export function RenegociacaoClientePanel({ clienteIdInicial = "", placaInicial =
                       <strong>{formatBrl(totalSelecionado)}</strong>
                     </td>
                   </tr>
-                }
-              />
-            )}
-          </section>
-
-          <section className="form-card">
-            <h2 className="form-card__title">3. Plano de parcelas</h2>
-            <div className="form-grid">
-              <Field label="Código negociação (X)" hint="Usado em [NEGOCIADO X]">
-                <input
-                  className="input"
-                  value={negociacaoCodigo}
-                  onChange={(e) => setNegociacaoCodigo(e.target.value)}
-                />
-              </Field>
-              <Field label="Nº parcelas">
-                <input
-                  className="input"
-                  type="number"
-                  min={1}
-                  value={numParcelas}
-                  onChange={(e) => setNumParcelas(e.target.value)}
-                />
-              </Field>
-              <Field label="1ª parcela">
-                <DateInput value={primeiraParcela} onChange={setPrimeiraParcela} format="iso" />
-              </Field>
-              <Field label="Intervalo (dias)">
-                <input
-                  className="input"
-                  type="number"
-                  min={1}
-                  value={intervaloDias}
-                  onChange={(e) => setIntervaloDias(e.target.value)}
-                />
-              </Field>
-            </div>
-            <button type="button" className="btn btn--ghost" onClick={regenerarParcelas}>
-              Recalcular parcelas ({formatBrl(totalSelecionado)})
-            </button>
-            {parcelas.length > 0 ? (
-              <div className="table-wrap reneg-parcelas">
-                <DataTable
-                  rows={parcelas}
-                  keyFn={(p) => String(p.numero)}
-                  columns={[
-                    {
-                      key: "parcela",
-                      header: "Parcela",
-                      sortValue: (p) => p.numero,
-                      render: (p) => `${p.numero}x${p.totalParcelas}`,
-                    },
-                    {
-                      key: "vencimento",
-                      header: "Vencimento",
-                      sortValue: (p) => formatDataDebito(p.data),
-                      render: (p) => formatDataDebito(p.data),
-                    },
-                    {
-                      key: "valor",
-                      header: "Valor",
-                      className: "num",
-                      sortValue: (p) => p.valor,
-                      render: (p) => formatBrl(p.valor),
-                    },
-                  ]}
-                />
-              </div>
-            ) : null}
-          </section>
-
-          <div className="reneg-actions">
-            <button
-              type="button"
-              className="btn btn--ghost"
-              disabled={loadingPreview || selIds.size === 0 || resumo.rastreameConfigurado === false}
-              onClick={() => void fazerPreview()}
-            >
-              {loadingPreview ? "A validar…" : "Preview (dry-run)"}
-            </button>
-            <button
-              type="button"
-              className="btn btn--primary"
-              disabled={
-                loadingExec ||
-                selIds.size === 0 ||
-                !preview?.validacao.ok ||
-                resumo.rastreameConfigurado === false
+                ) : undefined
               }
-              onClick={() => void executar()}
-            >
-              {loadingExec ? "A executar…" : "Executar no Rastreame"}
-            </button>
-          </div>
+            />
+          </section>
 
-          <FlashError message={previewError} />
-          <FlashError message={execError} />
+          {resumo ? (
+            <>
+              <section className="form-card">
+                <h2 className="form-card__title">Plano de parcelas</h2>
+                {resumo.negociacaoCodigo ? (
+                  <p className="field__hint">
+                    Código da negociação: <strong>[NEGOCIADO {resumo.negociacaoCodigo}]</strong> — gerado
+                    automaticamente (sequencial por cliente, inicia em 1).
+                  </p>
+                ) : null}
+                <div className="form-grid">
+                  <Field label="Nº parcelas">
+                    <input
+                      className="input"
+                      type="number"
+                      min={1}
+                      value={numParcelas}
+                      onChange={(e) => setNumParcelas(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="1ª parcela">
+                    <DateInput value={primeiraParcela} onChange={setPrimeiraParcela} format="iso" />
+                  </Field>
+                  <Field label="Intervalo (dias)">
+                    <input
+                      className="input"
+                      type="number"
+                      min={1}
+                      value={intervaloDias}
+                      onChange={(e) => setIntervaloDias(e.target.value)}
+                    />
+                  </Field>
+                </div>
+                <button type="button" className="btn btn--ghost" onClick={regenerarParcelas}>
+                  Recalcular parcelas ({formatBrl(totalSelecionado)})
+                </button>
+                {parcelas.length > 0 ? (
+                  <div className="table-wrap reneg-parcelas">
+                    <DataTable
+                      rows={parcelas}
+                      keyFn={(p) => String(p.numero)}
+                      columns={[
+                        {
+                          key: "parcela",
+                          header: "Parcela",
+                          sortValue: (p) => p.numero,
+                          render: (p) => `${p.numero}x${p.totalParcelas}`,
+                        },
+                        {
+                          key: "vencimento",
+                          header: "Vencimento",
+                          sortValue: (p) => formatDataDebito(p.data),
+                          render: (p) => formatDataDebito(p.data),
+                        },
+                        {
+                          key: "valor",
+                          header: "Valor",
+                          className: "num",
+                          sortValue: (p) => p.valor,
+                          render: (p) => formatBrl(p.valor),
+                        },
+                      ]}
+                    />
+                  </div>
+                ) : null}
+              </section>
 
-          {preview ? (
-            <section className="form-card">
-              <h2 className="form-card__title">Validação</h2>
-              <p className={preview.validacao.ok ? "badge badge--ok" : "badge badge--danger"}>
-                Soma parcelas: {formatBrl(preview.validacao.soma)} · Diferença:{" "}
-                {formatBrl(preview.validacao.diff)} ·{" "}
-                {preview.validacao.ok ? "OK" : "Ajuste os valores antes de executar"}
-              </p>
-            </section>
+              <div className="reneg-actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={loadingPreview || selIds.size === 0}
+                  onClick={() => void fazerPreview()}
+                >
+                  {loadingPreview ? "A validar…" : "Preview (dry-run)"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  disabled={loadingExec || selIds.size === 0 || !preview?.validacao.ok}
+                  onClick={() => void salvar()}
+                >
+                  {loadingExec ? "A salvar…" : "Salvar"}
+                </button>
+              </div>
+
+              <FlashError message={previewError} />
+              <FlashError message={execError} />
+
+              {preview ? (
+                <section className="form-card">
+                  <h2 className="form-card__title">Validação</h2>
+                  {preview.negociacaoCodigo ? (
+                    <p className="field__hint">
+                      Código aplicado: <strong>[NEGOCIADO {preview.negociacaoCodigo}]</strong>
+                    </p>
+                  ) : null}
+                  <p className={preview.validacao.ok ? "badge badge--ok" : "badge badge--danger"}>
+                    Soma parcelas: {formatBrl(preview.validacao.soma)} · Diferença:{" "}
+                    {formatBrl(preview.validacao.diff)} ·{" "}
+                    {preview.validacao.ok ? "OK" : "Ajuste os valores antes de salvar"}
+                  </p>
+                </section>
+              ) : null}
+
+              <ResultPanel title="Resultado" data={execResult ?? preview} />
+            </>
           ) : null}
-
-          <ResultPanel title="Resultado" data={execResult ?? preview} />
         </>
-      ) : null}
+      ) : (
+        <p className="field__hint">Selecione um cliente para listar os débitos elegíveis.</p>
+      )}
     </section>
   );
 }
