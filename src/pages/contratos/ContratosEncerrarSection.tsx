@@ -3,32 +3,35 @@ import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { DataTable } from "@/components/DataTable";
-import { ClienteSelect, VeiculoSelect, NativeSelect } from "@/components/EntitySelects";
+import { NativeSelect } from "@/components/EntitySelects";
 import { Field, FormCard } from "@/components/FormCard";
 import { Toggle } from "@/components/Toggle";
 import { DateInput } from "@/components/DateInput";
 import { QueryError } from "@/components/PageHeader";
+import { ContratosVencimentoLegenda } from "@/pages/contratos/ContratosVencimentoLegenda";
+import { colunasVeiculoContrato } from "@/pages/contratos/contratosVeiculoGridColumns";
 import { useContratos, useClientes } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
 import { formatPlaca, clienteExibicaoPorId } from "@/lib/format";
+import {
+  alertaVencimentoContrato,
+  dataFimPrevistaContrato,
+  hojeIsoBr,
+  ordenarContratosRenovacao,
+  resumoVencimentoContratos,
+  rotuloAlertaVencimento,
+  rowClassVencimentoContrato,
+} from "@/lib/contratoVencimento";
 import { mensagemErroApi, mensagemSucessoEncerramento } from "@/lib/encerramentoFeedback";
 import type { Contrato } from "@/api/types";
 
 type MotivoEncerramento = "devolvido" | "recuperado" | "troca";
 
-function terminoContrato(contrato: Contrato): string {
-  if (contrato.dataEncerramento?.trim()) return contrato.dataEncerramento;
-  if (contrato.dataFimPrevista?.trim()) return contrato.dataFimPrevista;
-  return contrato.dataFim ?? "—";
-}
-
 export function ContratosEncerrarSection() {
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const contratoIdUrl = searchParams.get("id")?.trim() || null;
-  const [clienteId, setClienteId] = useState("");
-  const [veiculoId, setVeiculoId] = useState("");
   const [contratoSelecionadoId, setContratoSelecionadoId] = useState<string | null>(contratoIdUrl);
   const [dataEncerramento, setDataEncerramento] = useState("");
   const [motivo, setMotivo] = useState<MotivoEncerramento>("devolvido");
@@ -37,15 +40,20 @@ export function ContratosEncerrarSection() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const query = useContratos({
-    status: "ativo",
-    clienteId: clienteId || undefined,
-    veiculoId: veiculoId || undefined,
-  });
+  const query = useContratos({ status: "ativo" });
   const clientesQuery = useClientes();
+  const hojeIso = hojeIsoBr();
 
-  const rows = query.data?.items ?? [];
-  const temFiltro = Boolean(clienteId || veiculoId);
+  const rows = useMemo(() => {
+    const list = [...(query.data?.items ?? [])];
+    list.sort((a, b) => ordenarContratosRenovacao(a, b, hojeIso));
+    return list;
+  }, [query.data, hojeIso]);
+
+  const resumo = useMemo(
+    () => resumoVencimentoContratos(rows, hojeIso),
+    [rows, hojeIso],
+  );
 
   const contratoSelecionado = useMemo(
     () => rows.find((c) => c.id === contratoSelecionadoId) ?? null,
@@ -134,32 +142,12 @@ export function ContratosEncerrarSection() {
     <>
       <section className="form-card">
         <h2 className="form-card__title">Contratos ativos</h2>
-        <div className="form-grid">
-          <label className="field">
-            <span className="field__label">Cliente</span>
-            <ClienteSelect
-              value={clienteId}
-              onChange={setClienteId}
-              ativo
-              variant="filtro"
-            />
-          </label>
-          <label className="field">
-            <span className="field__label">Veículo</span>
-            <VeiculoSelect
-              value={veiculoId}
-              onChange={setVeiculoId}
-              valueField="id"
-              ativo
-              variant="filtro"
-            />
-          </label>
-        </div>
         {!query.isLoading ? (
           <p className="field__hint">
             {rows.length} contrato{rows.length === 1 ? "" : "s"}
           </p>
         ) : null}
+        <ContratosVencimentoLegenda vencidos={resumo.vencidos} proximos={resumo.proximos} />
         {query.isError ? (
           <QueryError
             message={
@@ -174,9 +162,8 @@ export function ContratosEncerrarSection() {
           keyFn={(c) => c.id}
           selectedKey={contratoSelecionadoId}
           onRowClick={selecionarContrato}
-          emptyMessage={
-            temFiltro ? "Nenhum contrato ativo corresponde aos filtros." : "Nenhum contrato ativo."
-          }
+          rowClassName={(c) => rowClassVencimentoContrato(c, hojeIso)}
+          emptyMessage="Nenhum contrato ativo."
           columns={[
             {
               key: "sel",
@@ -203,71 +190,89 @@ export function ContratosEncerrarSection() {
                 </strong>
               ),
             },
-            {
-              key: "placa",
-              header: "Placa",
-              sortValue: (c) => formatPlaca(c.placa ?? c.veiculo?.placa),
-              render: (c) => formatPlaca(c.placa ?? c.veiculo?.placa),
-            },
+            ...colunasVeiculoContrato,
             { key: "inicio", header: "Início", sortValue: (c) => c.dataInicio ?? "", render: (c) => c.dataInicio ?? "—" },
-            { key: "termino", header: "Término previsto", sortValue: (c) => terminoContrato(c), render: (c) => terminoContrato(c) },
+            {
+              key: "termino",
+              header: "Fim previsto",
+              sortValue: (c) => dataFimPrevistaContrato(c) ?? "",
+              render: (c) => {
+                const fim = dataFimPrevistaContrato(c) ?? "—";
+                const rotulo = rotuloAlertaVencimento(dataFimPrevistaContrato(c), hojeIso);
+                const alerta = alertaVencimentoContrato(dataFimPrevistaContrato(c), hojeIso);
+                return (
+                  <span className="contratos-renovar__termino">
+                    {fim}
+                    {rotulo ? (
+                      <span
+                        className={
+                          alerta === "vencido" ? "badge badge--danger" : "badge badge--warn"
+                        }
+                      >
+                        {rotulo}
+                      </span>
+                    ) : null}
+                  </span>
+                );
+              },
+            },
           ]}
         />
       </section>
 
       {contratoSelecionado ? (
-        <p className="field__hint">
-          Selecionado:{" "}
-          <strong>
-            {clienteExibicaoPorId(
-              clientesQuery.data?.items,
-              contratoSelecionado.clienteId,
-              contratoSelecionado.clienteNome,
-            )}
-          </strong>{" "}
-          ·{" "}
-          {formatPlaca(contratoSelecionado.placa)}
-        </p>
-      ) : null}
-
-      <FormCard
-        title="Efetivar encerramento"
-        onSubmit={submit}
-        loading={loading}
-        submitDisabled={!contratoSelecionado}
-        submitLabel="Encerrar contrato"
-        error={error}
-        success={success}
-      >
-        <Field label="Data de encerramento">
-          <DateInput value={dataEncerramento} onChange={setDataEncerramento} required disabled={loading} />
-        </Field>
-        <Field label="Motivo do encerramento">
-          <NativeSelect
-            value={motivo}
-            onChange={(v) => setMotivo(v as MotivoEncerramento)}
-            variant="cadastro"
-            allowEmpty={false}
-            disabled={loading}
-            aria-label="Motivo do encerramento"
+        <>
+          <p className="field__hint">
+            Selecionado:{" "}
+            <strong>
+              {clienteExibicaoPorId(
+                clientesQuery.data?.items,
+                contratoSelecionado.clienteId,
+                contratoSelecionado.clienteNome,
+              )}
+            </strong>{" "}
+            · {formatPlaca(contratoSelecionado.placa)} · fim{" "}
+            {dataFimPrevistaContrato(contratoSelecionado) ?? "—"}
+          </p>
+          <FormCard
+            title="Efetivar encerramento"
+            onSubmit={submit}
+            loading={loading}
+            submitLabel="Encerrar contrato"
+            error={error}
+            success={success}
           >
-            <option value="devolvido">Devolvido</option>
-            <option value="recuperado">Recuperado</option>
-            <option value="troca">Troca de veículo</option>
-          </NativeSelect>
-        </Field>
-        <Field label="Quebra de contrato">
-          <Toggle
-            checked={quebraContrato}
-            onChange={setQuebraContrato}
-            disabled={loading || motivo === "troca"}
-            label="Registrar quebra (retenção proporcional de caução)"
-          />
-          {motivo === "troca" ? (
-            <span className="field__hint">Troca de veículo não é quebra — a caução transfere para o novo contrato.</span>
-          ) : null}
-        </Field>
-      </FormCard>
+            <Field label="Data de encerramento">
+              <DateInput value={dataEncerramento} onChange={setDataEncerramento} required disabled={loading} />
+            </Field>
+            <Field label="Motivo do encerramento">
+              <NativeSelect
+                value={motivo}
+                onChange={(v) => setMotivo(v as MotivoEncerramento)}
+                variant="cadastro"
+                allowEmpty={false}
+                disabled={loading}
+                aria-label="Motivo do encerramento"
+              >
+                <option value="devolvido">Devolvido</option>
+                <option value="recuperado">Recuperado</option>
+                <option value="troca">Troca de veículo</option>
+              </NativeSelect>
+            </Field>
+            <Field label="Quebra de contrato">
+              <Toggle
+                checked={quebraContrato}
+                onChange={setQuebraContrato}
+                disabled={loading || motivo === "troca"}
+                label="Registrar quebra (retenção proporcional de caução)"
+              />
+              {motivo === "troca" ? (
+                <span className="field__hint">Troca de veículo não é quebra — a caução transfere para o novo contrato.</span>
+              ) : null}
+            </Field>
+          </FormCard>
+        </>
+      ) : null}
     </>
   );
 }

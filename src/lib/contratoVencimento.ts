@@ -74,3 +74,17 @@ export function rowClassVencimentoContrato(c: Contrato, hojeIso = hojeIsoBr()): 
   if (alerta === "proximo") return "row--proximo-vencer";
   return undefined;
 }
+
+export function resumoVencimentoContratos(
+  rows: Contrato[],
+  hojeIso = hojeIsoBr(),
+): { vencidos: number; proximos: number } {
+  let vencidos = 0;
+  let proximos = 0;
+  for (const c of rows) {
+    const alerta = alertaVencimentoContrato(dataFimPrevistaContrato(c), hojeIso);
+    if (alerta === "vencido") vencidos += 1;
+    else if (alerta === "proximo") proximos += 1;
+  }
+  return { vencidos, proximos };
+}

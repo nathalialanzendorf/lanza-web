@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { CadastroBackLink } from "@/components/CadastroBackLink";
-import { VeiculoSelect, matchVeiculoSelectValue } from "@/components/EntitySelects";
+import { VeiculoSelect, NativeSelect, matchVeiculoSelectValue } from "@/components/EntitySelects";
+import { DateInput } from "@/components/DateInput";
 import { Field, FormCard } from "@/components/FormCard";
 import { ResultPanel } from "@/components/ResultPanel";
 import { useVeiculos } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
+import { CATEGORIAS_DESPESA_PARCEIRO } from "@/lib/parceiroDespesaCategorias";
 
 type Props = {
   despesaId?: string;
@@ -24,7 +26,7 @@ export function DespesaParceiroCadastroSection({ despesaId }: Props) {
   const [categoria, setCategoria] = useState("IPVA");
   const [descricao, setDescricao] = useState("");
   const [valor, setValor] = useState("");
-  const [competencia, setCompetencia] = useState("");
+  const [data, setData] = useState("");
   const [carregando, setCarregando] = useState(editando);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +48,8 @@ export function DespesaParceiroCadastroSection({ despesaId }: Props) {
         if (d.categoria) setCategoria(d.categoria);
         if (d.descricao) setDescricao(d.descricao);
         if (d.valor != null) setValor(String(d.valor));
-        if (d.competencia) setCompetencia(d.competencia);
+        if (d.data) setData(d.data);
+        else if (d.vencimentoBr) setData(d.vencimentoBr);
       })
       .catch((err) => {
         if (cancelado) return;
@@ -58,9 +61,13 @@ export function DespesaParceiroCadastroSection({ despesaId }: Props) {
     return () => {
       cancelado = true;
     };
-  }, [despesaId]);
+  }, [despesaId, veiculosQuery.data]);
 
   async function submit() {
+    if (!data.trim()) {
+      setError("Informe a data de vencimento.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -69,7 +76,7 @@ export function DespesaParceiroCadastroSection({ despesaId }: Props) {
         categoria: categoria.trim(),
         descricao: descricao.trim(),
         valor: Number(valor),
-        competencia: competencia.trim() || undefined,
+        data: data.trim(),
       };
       const r = editando
         ? await lanzaApi.atualizarParceiroDespesa(despesaId!, body)
@@ -106,12 +113,29 @@ export function DespesaParceiroCadastroSection({ despesaId }: Props) {
           <VeiculoSelect value={veiculoPlaca} onChange={setVeiculoPlaca} required variant="cadastro" disabled={loading} />
         </Field>
         <Field label="Categoria">
-          <input className="input" value={categoria} onChange={(e) => setCategoria(e.target.value)} required />
+          <NativeSelect
+            value={categoria}
+            onChange={setCategoria}
+            variant="cadastro"
+            allowEmpty={false}
+            disabled={loading}
+            required
+          >
+            {!CATEGORIAS_DESPESA_PARCEIRO.includes(categoria as (typeof CATEGORIAS_DESPESA_PARCEIRO)[number]) &&
+            categoria.trim() ? (
+              <option value={categoria}>{categoria}</option>
+            ) : null}
+            {CATEGORIAS_DESPESA_PARCEIRO.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </NativeSelect>
         </Field>
         <Field label="Descrição">
           <input className="input" value={descricao} onChange={(e) => setDescricao(e.target.value)} />
         </Field>
-        <Field label="Valor">
+        <Field label="Valor (R$)">
           <input
             className="input"
             type="number"
@@ -121,8 +145,8 @@ export function DespesaParceiroCadastroSection({ despesaId }: Props) {
             required
           />
         </Field>
-        <Field label="Competência" hint="MM/AAAA">
-          <input className="input" value={competencia} onChange={(e) => setCompetencia(e.target.value)} />
+        <Field label="Data (vencimento)" hint="DD/MM/AAAA">
+          <DateInput value={data} onChange={setData} required disabled={loading} />
         </Field>
       </FormCard>
       <ResultPanel title="Resultado" data={result} />

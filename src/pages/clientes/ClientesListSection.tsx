@@ -8,7 +8,7 @@ import { RowActions } from "@/components/RowActions";
 import { useClientes, useContratos } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
-import { formatVeiculoLabel, formatClienteLabel, statusClass, statusLabel } from "@/lib/format";
+import { formatPlaca, formatClienteLabel, statusClass, statusLabel } from "@/lib/format";
 import { ordenarAtivoDepoisAlfabetico, registroAtivo, rowClassInativo } from "@/lib/listagemCadastro";
 import {
   clienteOperacionalAtivo,
@@ -26,16 +26,15 @@ function formatCnh(cnh: Cliente["cnh"]): string {
   return "—";
 }
 
-function veiculoDoContrato(contrato: Contrato): string {
-  return formatVeiculoLabel({
-    placa: contrato.placa ?? contrato.veiculo?.placa,
-    marcaModelo: contrato.veiculo?.marcaModelo,
-    anoModelo: contrato.veiculo?.anoModelo,
-  });
-}
-
 function rotuloCliente(cliente: Cliente, ativoOperacional: boolean): string {
   return formatClienteLabel({ ...cliente, ativo: ativoOperacional });
+}
+
+function contratoDoCliente(
+  cliente: Cliente,
+  contratosAtivos: ReturnType<typeof indexarContratosOperacionaisAtivos>,
+): Contrato | undefined {
+  return contratoOperacionalDoCliente(cliente, contratosAtivos);
 }
 
 export function ClientesListSection() {
@@ -142,16 +141,29 @@ export function ClientesListSection() {
           { key: "cpf", header: "CPF", sortValue: (c) => c.cpf ?? "", render: (c) => c.cpf ?? "—" },
           { key: "cnh", header: "CNH", sortValue: (c) => formatCnh(c.cnh), render: (c) => formatCnh(c.cnh) },
           {
-            key: "veiculoContrato",
-            header: "Veículo",
+            key: "placa",
+            header: "Placa",
             sortValue: (c) => {
-              const contrato = contratoOperacionalDoCliente(c, contratosAtivos);
-              return contrato ? veiculoDoContrato(contrato) : "";
+              const contrato = contratoDoCliente(c, contratosAtivos);
+              return formatPlaca(contrato?.placa ?? contrato?.veiculo?.placa);
             },
             render: (c) => {
-              const contrato = contratoOperacionalDoCliente(c, contratosAtivos);
-              return contrato ? veiculoDoContrato(contrato) : "—";
+              const contrato = contratoDoCliente(c, contratosAtivos);
+              const placa = contrato?.placa ?? contrato?.veiculo?.placa;
+              return placa ? <strong>{formatPlaca(placa)}</strong> : "—";
             },
+          },
+          {
+            key: "marcaModelo",
+            header: "Marca / modelo",
+            sortValue: (c) => contratoDoCliente(c, contratosAtivos)?.veiculo?.marcaModelo ?? "",
+            render: (c) => contratoDoCliente(c, contratosAtivos)?.veiculo?.marcaModelo ?? "—",
+          },
+          {
+            key: "ano",
+            header: "Ano",
+            sortValue: (c) => contratoDoCliente(c, contratosAtivos)?.veiculo?.anoModelo ?? "",
+            render: (c) => contratoDoCliente(c, contratosAtivos)?.veiculo?.anoModelo ?? "—",
           },
           {
             key: "status",

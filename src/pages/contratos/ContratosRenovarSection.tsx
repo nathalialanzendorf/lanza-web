@@ -2,18 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { DataTable } from "@/components/DataTable";
-import { ClienteSelect, VeiculoSelect } from "@/components/EntitySelects";
 import { QueryError } from "@/components/PageHeader";
 import { ContratosCadastroSection } from "@/pages/contratos/ContratosCadastroSection";
+import { ContratosVencimentoLegenda } from "@/pages/contratos/ContratosVencimentoLegenda";
+import { colunasVeiculoContrato } from "@/pages/contratos/contratosVeiculoGridColumns";
 import { useClientes, useContratos } from "@/api/hooks";
 import { LanzaApiError } from "@/api/client";
 import { formatPlaca, clienteExibicaoPorId } from "@/lib/format";
 import {
-  PROXIMO_VENCER_DIAS,
   alertaVencimentoContrato,
   dataFimPrevistaContrato,
   hojeIsoBr,
   ordenarContratosRenovacao,
+  resumoVencimentoContratos,
   rotuloAlertaVencimento,
   rowClassVencimentoContrato,
 } from "@/lib/contratoVencimento";
@@ -22,15 +23,9 @@ import type { Contrato } from "@/api/types";
 export function ContratosRenovarSection() {
   const [searchParams, setSearchParams] = useSearchParams();
   const contratoIdUrl = searchParams.get("id")?.trim() || null;
-  const [clienteId, setClienteId] = useState("");
-  const [veiculoId, setVeiculoId] = useState("");
   const [contratoSelecionadoId, setContratoSelecionadoId] = useState<string | null>(contratoIdUrl);
 
-  const query = useContratos({
-    status: "ativo",
-    clienteId: clienteId || undefined,
-    veiculoId: veiculoId || undefined,
-  });
+  const query = useContratos({ status: "ativo" });
   const clientesQuery = useClientes();
   const hojeIso = hojeIsoBr();
 
@@ -40,18 +35,10 @@ export function ContratosRenovarSection() {
     return list;
   }, [query.data, hojeIso]);
 
-  const resumo = useMemo(() => {
-    let vencidos = 0;
-    let proximos = 0;
-    for (const c of rows) {
-      const a = alertaVencimentoContrato(dataFimPrevistaContrato(c), hojeIso);
-      if (a === "vencido") vencidos += 1;
-      else if (a === "proximo") proximos += 1;
-    }
-    return { vencidos, proximos };
-  }, [rows, hojeIso]);
-
-  const temFiltro = Boolean(clienteId || veiculoId);
+  const resumo = useMemo(
+    () => resumoVencimentoContratos(rows, hojeIso),
+    [rows, hojeIso],
+  );
 
   const contratoSelecionado = useMemo(
     () => rows.find((c) => c.id === contratoSelecionadoId) ?? null,
@@ -95,44 +82,13 @@ export function ContratosRenovarSection() {
     <>
       <section className="form-card">
         <h2 className="form-card__title">Contratos ativos — renovação</h2>
-        <div className="form-grid">
-          <label className="field">
-            <span className="field__label">Cliente</span>
-            <ClienteSelect
-              value={clienteId}
-              onChange={setClienteId}
-              ativo
-              variant="filtro"
-            />
-          </label>
-          <label className="field">
-            <span className="field__label">Veículo</span>
-            <VeiculoSelect
-              value={veiculoId}
-              onChange={setVeiculoId}
-              valueField="id"
-              ativo
-              variant="filtro"
-            />
-          </label>
-        </div>
         {!query.isLoading ? (
           <p className="field__hint">
             {rows.length} contrato{rows.length === 1 ? "" : "s"}
           </p>
         ) : null}
 
-        <p className="field__hint contratos-renovar__legenda">
-          <span className="badge badge--danger">Vencido</span> fim previsto já passou ·{" "}
-          <span className="badge badge--warn">Próximo</span> vence em até {PROXIMO_VENCER_DIAS} dias
-          {resumo.vencidos + resumo.proximos > 0 ? (
-            <>
-              {" "}
-              — {resumo.vencidos} vencido{resumo.vencidos === 1 ? "" : "s"}, {resumo.proximos} próximo
-              {resumo.proximos === 1 ? "" : "s"}
-            </>
-          ) : null}
-        </p>
+        <ContratosVencimentoLegenda vencidos={resumo.vencidos} proximos={resumo.proximos} />
 
         {query.isError ? (
           <QueryError
@@ -150,9 +106,7 @@ export function ContratosRenovarSection() {
           selectedKey={contratoSelecionadoId}
           onRowClick={selecionarContrato}
           rowClassName={(c) => rowClassVencimentoContrato(c, hojeIso)}
-          emptyMessage={
-            temFiltro ? "Nenhum contrato ativo corresponde aos filtros." : "Nenhum contrato ativo."
-          }
+          emptyMessage="Nenhum contrato ativo."
           columns={[
             {
               key: "sel",
@@ -179,12 +133,7 @@ export function ContratosRenovarSection() {
                 </strong>
               ),
             },
-            {
-              key: "placa",
-              header: "Placa",
-              sortValue: (c) => formatPlaca(c.placa ?? c.veiculo?.placa),
-              render: (c) => formatPlaca(c.placa ?? c.veiculo?.placa),
-            },
+            ...colunasVeiculoContrato,
             { key: "inicio", header: "Início", sortValue: (c) => c.dataInicio ?? "", render: (c) => c.dataInicio ?? "—" },
             {
               key: "termino",

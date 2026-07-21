@@ -2,20 +2,13 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { DataTable } from "@/components/DataTable";
-import { ClienteSelect, VeiculoSelect } from "@/components/EntitySelects";
 import { QueryError } from "@/components/PageHeader";
 import { RowActions } from "@/components/RowActions";
-import {
-  PERIODO_VAZIO,
-  RelatorioPeriodoFiltro,
-  type RelatorioPeriodo,
-} from "@/components/relatorios/RelatorioPeriodoFiltro";
 import { useContratos, useClientes, useParceiros, useVeiculos, useVinculosParceiro } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
 import { formatPlaca, clienteExibicaoPorId } from "@/lib/format";
 import { ordenarAtivoDepoisAlfabetico } from "@/lib/listagemCadastro";
-import { periodoPreenchido } from "@/lib/periodoRelatorio";
 import type { Contrato } from "@/api/types";
 
 function terminoContrato(contrato: Contrato): string {
@@ -34,16 +27,8 @@ function veiculoUuid(contrato: Contrato, placaParaId: Map<string, string>): stri
 
 export function ContratosListSection() {
   const qc = useQueryClient();
-  const [clienteId, setClienteId] = useState("");
-  const [veiculoId, setVeiculoId] = useState("");
-  const [periodo, setPeriodo] = useState<RelatorioPeriodo>(PERIODO_VAZIO);
   const [excluindoId, setExcluindoId] = useState<string | null>(null);
-  const query = useContratos({
-    clienteId: clienteId || undefined,
-    veiculoId: veiculoId || undefined,
-    dataInicial: periodo.dataInicial.trim() || undefined,
-    dataFinal: periodo.dataFinal.trim() || undefined,
-  });
+  const query = useContratos();
   const parceirosQuery = useParceiros();
   const vinculosQuery = useVinculosParceiro();
   const veiculosQuery = useVeiculos();
@@ -56,7 +41,6 @@ export function ContratosListSection() {
       rotuloDe: (c) => formatPlaca(c.placa ?? c.veiculo?.placa ?? c.id),
     });
   }, [query.data]);
-  const temFiltro = Boolean(clienteId || veiculoId || periodoPreenchido(periodo));
 
   const parceiroPorVeiculoId = useMemo(() => {
     const nomes = new Map((parceirosQuery.data?.items ?? []).map((p) => [p.id, p.nome]));
@@ -106,39 +90,15 @@ export function ContratosListSection() {
 
   return (
     <>
-      <section className="form-card">
-        <h2 className="form-card__title">Filtros</h2>
-        <div className="form-grid">
-          <label className="field">
-            <span className="field__label">Veículo</span>
-            <VeiculoSelect
-              value={veiculoId}
-              onChange={setVeiculoId}
-              valueField="id"
-              variant="filtro"
-            />
-          </label>
-          <label className="field">
-            <span className="field__label">Cliente</span>
-            <ClienteSelect value={clienteId} onChange={setClienteId} variant="filtro" />
-          </label>
-          <RelatorioPeriodoFiltro
-            value={periodo}
-            onChange={setPeriodo}
-            hint="Contratos que intersectam o período (início / término previsto ou encerramento)"
-          />
-        </div>
-        {!query.isLoading ? (
-          <p className="field__hint">
-            {rows.length} contrato{rows.length === 1 ? "" : "s"}
-          </p>
-        ) : null}
-      </section>
-
       {query.isError ? (
         <QueryError
           message={query.error instanceof LanzaApiError ? query.error.message : "Falha ao listar contratos."}
         />
+      ) : null}
+      {!query.isLoading ? (
+        <p className="field__hint">
+          {rows.length} contrato{rows.length === 1 ? "" : "s"}
+        </p>
       ) : null}
       <DataTable
         loading={query.isLoading || loadingExtra}
@@ -147,7 +107,7 @@ export function ContratosListSection() {
         rowClassName={(c) =>
           c.status === "ativo" ? undefined : "row--inativo row--inativo-amber"
         }
-        emptyMessage={temFiltro ? "Nenhum contrato corresponde aos filtros." : "Nenhum contrato registado."}
+        emptyMessage="Nenhum contrato registado."
         columns={[
           {
             key: "placa",

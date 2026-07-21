@@ -18,16 +18,10 @@ import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
 import { formatBrl, formatVeiculoLabel } from "@/lib/format";
 import { periodoPreenchido } from "@/lib/periodoRelatorio";
+import { CATEGORIAS_DESPESA_PARCEIRO } from "@/lib/parceiroDespesaCategorias";
 import type { ParceiroDespesa, Veiculo } from "@/api/types";
 
-const CATEGORIAS = [
-  "Seguro",
-  "Rastreador",
-  "Manutenção",
-  "IPVA",
-  "Licenciamento",
-  "Outros",
-] as const;
+const CATEGORIAS = CATEGORIAS_DESPESA_PARCEIRO;
 
 type FiltroPagamento = "em_aberto" | "pago" | "todos";
 

@@ -254,9 +254,11 @@ export function RenegociacaoClientePanel({ clienteIdInicial = "", placaInicial =
 
       {resumo ? (
         <>
+          {resumo.aviso ? <p className="field__hint badge badge--warn">{resumo.aviso}</p> : null}
           <section className="form-card">
             <h2 className="form-card__title">
-              2. Débitos no Rastreame ({resumo.total}) · {formatBrl(resumo.soma)}
+              2. Débitos {resumo.fonte === "local" ? "no cadastro" : "no Rastreame"} ({resumo.total}) ·{" "}
+              {formatBrl(resumo.soma)}
             </h2>
             {resumo.debitos.length === 0 ? (
               <p className="field__hint">Nenhum débito elegível para renegociação.</p>
@@ -374,7 +376,7 @@ export function RenegociacaoClientePanel({ clienteIdInicial = "", placaInicial =
             <button
               type="button"
               className="btn btn--ghost"
-              disabled={loadingPreview || selIds.size === 0}
+              disabled={loadingPreview || selIds.size === 0 || resumo.rastreameConfigurado === false}
               onClick={() => void fazerPreview()}
             >
               {loadingPreview ? "A validar…" : "Preview (dry-run)"}
@@ -382,7 +384,12 @@ export function RenegociacaoClientePanel({ clienteIdInicial = "", placaInicial =
             <button
               type="button"
               className="btn btn--primary"
-              disabled={loadingExec || selIds.size === 0 || !preview?.validacao.ok}
+              disabled={
+                loadingExec ||
+                selIds.size === 0 ||
+                !preview?.validacao.ok ||
+                resumo.rastreameConfigurado === false
+              }
               onClick={() => void executar()}
             >
               {loadingExec ? "A executar…" : "Executar no Rastreame"}

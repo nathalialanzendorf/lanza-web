@@ -394,6 +394,9 @@ export type RenegociacaoResumo = {
   rastreavelKey: string;
   clienteId?: string;
   placa?: string;
+  fonte?: "rastreame" | "local";
+  rastreameConfigurado?: boolean;
+  aviso?: string;
   total: number;
   soma: number;
   debitos: RenegociacaoDebito[];
