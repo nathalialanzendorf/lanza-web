@@ -85,14 +85,13 @@ export function RecebimentosManualSection() {
       .map((d) => {
         const valorDevido = valorDespesaCliente(d);
         if (valorDevido <= 0) return null;
-        const chave = d.autoInfracao?.trim() || d.id;
+        const rotulo = d.descricao?.trim() || d.categoria?.trim() || d.id;
         const placa = d.placa?.trim() || d.veiculoId?.trim() || "";
         return {
-          id: chave,
-          autoInfracao: chave,
+          id: d.id,
           placa,
           valor: valorDevido,
-          label: `${formatBrl(valorDevido)} · ${d.descricao ?? d.categoria ?? chave}${placa ? ` · ${placa}` : ""}`,
+          label: `${formatBrl(valorDevido)} · ${rotulo}${placa ? ` · ${placa}` : ""}`,
         };
       })
       .filter((o): o is NonNullable<typeof o> => o != null)
@@ -107,9 +106,7 @@ export function RecebimentosManualSection() {
   const despesaRegistro = useMemo(() => {
     if (!despesaSel) return null;
     return (
-      (despesasQuery.data?.items ?? []).find(
-        (d) => (d.autoInfracao?.trim() || d.id) === despesaSel.id,
-      ) ?? null
+      (despesasQuery.data?.items ?? []).find((d) => d.id === despesaSel.id) ?? null
     );
   }, [despesaSel, despesasQuery.data]);
 
@@ -160,14 +157,16 @@ export function RecebimentosManualSection() {
     if (item) setValor(formatValorInput(item.valor));
   }
 
-  function placaBaixa(): string | null {
-    if (despesaRegistro) {
-      const pk = placaDespesa(despesaRegistro);
-      if (pk.length === 7) return formatPlacaFromCompact(pk);
-      const bruta = String(despesaRegistro.placa ?? despesaRegistro.veiculoId ?? "").trim();
-      if (bruta) return bruta;
-    }
-    return null;
+  function placaExibicao(): string | null {
+    if (!despesaRegistro) return null;
+    const pk = placaDespesa(despesaRegistro);
+    if (pk.length === 7) return formatPlacaFromCompact(pk);
+    const bruta = String(despesaRegistro.placa ?? "").trim();
+    return bruta || null;
+  }
+
+  function veiculoIdBaixa(): string | null {
+    return despesaRegistro?.veiculoId?.trim() || null;
   }
 
   async function montarPlano() {
@@ -181,9 +180,9 @@ export function RecebimentosManualSection() {
       );
       return;
     }
-    const placa = placaBaixa();
-    if (!placa) {
-      setPlanoError("A pendência selecionada não tem placa associada.");
+    const veiculoId = veiculoIdBaixa();
+    if (!veiculoId) {
+      setPlanoError("A pendência selecionada não tem veículo associado.");
       return;
     }
     const valorNum = parseValorInput(valor);
@@ -208,11 +207,11 @@ export function RecebimentosManualSection() {
     setExecResult(null);
     try {
       const r = await lanzaApi.montarPlanoRecebimento({
-        clienteQuery: clienteId.trim(),
+        clienteId: clienteId.trim(),
+        veiculoId,
+        despesaId: despesaSel.id,
         valor: valorNum,
         dataBr: dataBr.trim(),
-        placa,
-        autoInfracaoAlvo: despesaSel.autoInfracao,
       });
       if (!r.data.linhas.length) {
         setPlanoError(
@@ -291,7 +290,7 @@ export function RecebimentosManualSection() {
           hint={
             clienteSelecionado
               ? despesaSel
-                ? `Devido ${formatBrl(despesaSel.valor)} · placa ${placaBaixa() ?? "—"} · pode receber valor parcial (até o total)`
+                ? `Devido ${formatBrl(despesaSel.valor)} · placa ${placaExibicao() ?? "—"} · pode receber valor parcial (até o total)`
                 : opcoesDespesa.length === 0
                   ? (
                       <>

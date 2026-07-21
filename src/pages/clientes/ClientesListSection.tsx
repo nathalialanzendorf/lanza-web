@@ -9,6 +9,7 @@ import { useClientes, useContratos } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
 import { formatPlaca, formatClienteLabel, statusClass, statusLabel } from "@/lib/format";
+import { pagamentoContratoExibicao } from "@/lib/contratoPrazo";
 import { ordenarAtivoDepoisAlfabetico, registroAtivo, rowClassInativo } from "@/lib/listagemCadastro";
 import {
   clienteOperacionalAtivo,
@@ -164,6 +165,12 @@ export function ClientesListSection() {
             header: "Ano",
             sortValue: (c) => contratoDoCliente(c, contratosAtivos)?.veiculo?.anoModelo ?? "",
             render: (c) => contratoDoCliente(c, contratosAtivos)?.veiculo?.anoModelo ?? "—",
+          },
+          {
+            key: "pagamento",
+            header: "Data pagamento",
+            sortValue: (c) => pagamentoContratoExibicao(contratoDoCliente(c, contratosAtivos)),
+            render: (c) => pagamentoContratoExibicao(contratoDoCliente(c, contratosAtivos)),
           },
           {
             key: "status",

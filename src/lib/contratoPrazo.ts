@@ -1,3 +1,4 @@
+import type { Contrato } from "@/api/types";
 import { brToIsoDate, isoDateToBr } from "@/lib/dateBr";
 import { hojeIsoBr } from "@/lib/contratoVencimento";
 
@@ -75,6 +76,30 @@ const DIA_PAGAMENTO_POR_CHAVE: Record<string, string> = {
   sexta: "todas as sextas-feiras",
   domingo: "todos os domingos",
 };
+
+/** Rótulo curto do dia de pagamento semanal (ex.: "Segunda-feira"). */
+export function labelDiaPagamentoSemanal(raw: string | null | undefined): string {
+  if (!String(raw ?? "").trim()) return "—";
+  const value = diaPagamentoSemanaParaSelect(raw);
+  const opt = DIAS_PAGAMENTO_SEMANAL.find((d) => d.value === value);
+  return opt?.label ?? String(raw).trim();
+}
+
+/** Exibição do pagamento do contrato (semanal, mensal ou texto livre). */
+export function pagamentoContratoExibicao(
+  contrato:
+    | Pick<Contrato, "diaPagamentoSemana" | "diaPagamentoMes" | "diaPagamentoTexto">
+    | null
+    | undefined,
+): string {
+  if (!contrato) return "—";
+  if (contrato.diaPagamentoMes != null) return `Dia ${contrato.diaPagamentoMes}`;
+  if (contrato.diaPagamentoSemana?.trim()) {
+    return labelDiaPagamentoSemanal(contrato.diaPagamentoSemana);
+  }
+  const texto = contrato.diaPagamentoTexto?.trim();
+  return texto || "—";
+}
 
 /** Converte `diaPagamentoSemana` do contrato para valor do select. */
 export function diaPagamentoSemanaParaSelect(raw: string | null | undefined): string {

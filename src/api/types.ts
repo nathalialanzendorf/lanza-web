@@ -118,6 +118,9 @@ export type Contrato = {
   valorSemanal?: number | null;
   valorMensal?: number | null;
   valorDiaria?: number | null;
+  diaPagamentoSemana?: string | null;
+  diaPagamentoMes?: number | null;
+  diaPagamentoTexto?: string | null;
 };
 
 /** Resposta completa de GET /api/contratos/:id */

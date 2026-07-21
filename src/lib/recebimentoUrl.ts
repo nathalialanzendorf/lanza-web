@@ -50,7 +50,7 @@ export function urlLancarRecebimentoDespesa(
     params.set("valor", String(valor));
   }
 
-  const despesaId = (d.autoInfracao?.trim() || d.id)?.trim();
+  const despesaId = d.id?.trim();
   if (despesaId) params.set("despesaId", despesaId);
 
   const data = (dataReferenciaBr ?? d.vencimentoBr)?.trim();
