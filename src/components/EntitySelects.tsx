@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useMemo } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { useClientes, useContratos, useParceiros, useVeiculos, useVinculosParceiro } from "@/api/hooks";
 import { formatClienteLabel, formatVeiculoLabel } from "@/lib/format";
@@ -114,13 +114,85 @@ function clienteValue(c: Cliente, field: "id" | "cpf" | "nome"): string {
   return c.nome?.trim() ?? c.id;
 }
 
+function matchClienteIdPorBusca(clientes: Cliente[], query: string): string {
+  const q = query.trim();
+  if (!q) return "";
+
+  const byId = clientes.find((c) => c.id === q);
+  if (byId) return byId.id;
+
+  const key = q.replace(/\D/g, "");
+  if (key.length === 11) {
+    const byCpf = clientes.find((c) => c.cpf?.replace(/\D/g, "") === key);
+    if (byCpf) return byCpf.id;
+  }
+
+  const nk = q.toLowerCase();
+  const matches = clientes.filter((c) => (c.nome ?? "").toLowerCase().includes(nk));
+  if (matches.length === 1) return matches[0]!.id;
+  return "";
+}
+
+function rotuloClienteBusca(clientes: Cliente[], id: string): string {
+  if (!id) return "";
+  const c = clientes.find((x) => x.id === id);
+  return c ? formatClienteLabel(c) : id;
+}
+
+type BuscaEntidadeInputProps = {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  className?: string;
+  id?: string;
+  loading?: boolean;
+  placeholder: string;
+  datalistId: string;
+  texto: string;
+  onTextoChange: (texto: string) => void;
+  options: ReactNode;
+};
+
+function BuscaEntidadeInput({
+  value,
+  onChange,
+  disabled,
+  className = "input",
+  id,
+  loading,
+  placeholder,
+  datalistId,
+  texto,
+  onTextoChange,
+  options,
+}: BuscaEntidadeInputProps) {
+  return (
+    <>
+      <input
+        id={id}
+        className={className}
+        list={datalistId}
+        placeholder={loading ? "A carregar…" : placeholder}
+        value={texto}
+        disabled={disabled || loading}
+        onChange={(e) => onTextoChange(e.target.value)}
+        onBlur={() => {
+          if (!texto.trim()) onChange("");
+        }}
+      />
+      <datalist id={datalistId}>{options}</datalist>
+      {value ? <input type="hidden" value={value} readOnly aria-hidden /> : null}
+    </>
+  );
+}
+
 export type ClienteSelectProps = SelectBaseProps & {
   valueField?: "id" | "cpf" | "nome";
   ativo?: boolean;
 };
 
-export function ClienteSelect({ valueField = "id", ativo, ...props }: ClienteSelectProps) {
-  const query = useClientes(ativo);
+export function ClienteSelect({ valueField = "id", ativo, variant = "cadastro", value, onChange, ...props }: ClienteSelectProps) {
+  const query = useClientes(ativo === undefined ? undefined : { ativo });
   const items = useMemo(() => {
     const list = [...(query.data?.items ?? [])].sort((a, b) =>
       (a.nome ?? a.id).localeCompare(b.nome ?? b.id, "pt-BR"),
@@ -130,8 +202,41 @@ export function ClienteSelect({ valueField = "id", ativo, ...props }: ClienteSel
     return list;
   }, [query.data, valueField]);
 
+  const datalistId = useId();
+  const [texto, setTexto] = useState(() => rotuloClienteBusca(items, value));
+
+  useEffect(() => {
+    if (!value) {
+      setTexto("");
+      return;
+    }
+    const rotulo = rotuloClienteBusca(items, value);
+    if (rotulo && rotulo !== value) setTexto(rotulo);
+  }, [value, items]);
+
+  if (variant === "filtro" && valueField === "id") {
+    return (
+      <BuscaEntidadeInput
+        {...props}
+        value={value}
+        onChange={onChange}
+        loading={query.isLoading}
+        placeholder="CPF / nome"
+        datalistId={datalistId}
+        texto={texto}
+        onTextoChange={(raw) => {
+          setTexto(raw);
+          onChange(matchClienteIdPorBusca(items, raw));
+        }}
+        options={items.map((c) => (
+          <option key={c.id} value={formatClienteLabel(c)} />
+        ))}
+      />
+    );
+  }
+
   return (
-    <SelectShell {...props} loading={query.isLoading}>
+    <SelectShell {...props} value={value} onChange={onChange} loading={query.isLoading}>
       {items.map((c) => (
         <option key={c.id} value={clienteValue(c, valueField)}>
           {formatClienteLabel(c)}
@@ -220,15 +325,48 @@ export type ParceiroSelectProps = SelectBaseProps & {
   ativo?: boolean;
 };
 
-export function ParceiroSelect({ ativo, ...props }: ParceiroSelectProps) {
-  const query = useParceiros(ativo ? true : undefined);
+export function ParceiroSelect({ ativo, variant = "cadastro", value, onChange, ...props }: ParceiroSelectProps) {
+  const query = useParceiros(ativo ? { ativo: true } : undefined);
   const items = useMemo(
     () => [...(query.data?.items ?? [])].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
     [query.data],
   );
 
+  const datalistId = useId();
+  const [texto, setTexto] = useState(() => items.find((p) => p.id === value)?.nome ?? "");
+
+  useEffect(() => {
+    if (!value) {
+      setTexto("");
+      return;
+    }
+    const nome = items.find((p) => p.id === value)?.nome;
+    if (nome) setTexto(nome);
+  }, [value, items]);
+
+  if (variant === "filtro") {
+    return (
+      <BuscaEntidadeInput
+        {...props}
+        value={value}
+        onChange={onChange}
+        loading={query.isLoading}
+        placeholder="Nome"
+        datalistId={datalistId}
+        texto={texto}
+        onTextoChange={(raw) => {
+          setTexto(raw);
+          onChange(matchParceiroIdPorNome(items, raw));
+        }}
+        options={items.map((p) => (
+          <option key={p.id} value={p.nome} />
+        ))}
+      />
+    );
+  }
+
   return (
-    <SelectShell {...props} loading={query.isLoading}>
+    <SelectShell {...props} value={value} onChange={onChange} loading={query.isLoading}>
       {items.map((p: Parceiro) => (
         <option key={p.id} value={p.id}>
           {p.nome}

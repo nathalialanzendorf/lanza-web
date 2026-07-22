@@ -18,10 +18,10 @@ export function useResumo() {
   });
 }
 
-export function useClientes(ativo?: boolean) {
+export function useClientes(opts?: { ativo?: boolean; cpf?: string; nome?: string; q?: string }) {
   return useQuery({
-    queryKey: ["clientes", { ativo }],
-    queryFn: () => lanzaApi.listarClientes(ativo),
+    queryKey: ["clientes", opts ?? {}],
+    queryFn: () => lanzaApi.listarClientes(opts),
   });
 }
 
@@ -117,10 +117,10 @@ export function useLocacoes(params?: {
   });
 }
 
-export function useParceiros(ativo?: boolean) {
+export function useParceiros(opts?: { ativo?: boolean; nome?: string; q?: string }) {
   return useQuery({
-    queryKey: ["parceiros", { ativo }],
-    queryFn: () => lanzaApi.listarParceiros(ativo === undefined ? undefined : { ativo }),
+    queryKey: ["parceiros", opts ?? {}],
+    queryFn: () => lanzaApi.listarParceiros(opts),
   });
 }
 

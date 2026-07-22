@@ -28,10 +28,8 @@ export const lanzaApi = {
   health: () => apiRequest<Health>("/health"),
   resumo: () => apiRequest<Resumo>("/api/resumo"),
 
-  listarClientes: (ativo?: boolean) =>
-    apiRequest<ListEnvelope<Cliente>>("/api/clientes", {
-      params: ativo === undefined ? undefined : { ativo },
-    }),
+  listarClientes: (params?: { ativo?: boolean; cpf?: string; nome?: string; q?: string }) =>
+    apiRequest<ListEnvelope<Cliente>>("/api/clientes", { params }),
   obterCliente: (id: string) =>
     apiRequest<DataEnvelope<Cliente>>(`/api/clientes/${encodeURIComponent(id)}`),
 
@@ -121,7 +119,7 @@ export const lanzaApi = {
       body,
     }),
 
-  listarParceiros: (params?: { ativo?: boolean }) =>
+  listarParceiros: (params?: { ativo?: boolean; nome?: string; q?: string }) =>
     apiRequest<ListEnvelope<Parceiro>>("/api/parceiros", { params }),
   obterParceiro: (id: string) =>
     apiRequest<DataEnvelope<Parceiro>>(`/api/parceiros/${encodeURIComponent(id)}`),

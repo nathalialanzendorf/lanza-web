@@ -53,8 +53,19 @@ export function ClientesListSection() {
 
   const rows = useMemo(() => {
     const items = query.data?.items ?? [];
-    const q = nome.trim().toLowerCase();
-    const filtrados = q ? items.filter((c) => (c.nome ?? "").toLowerCase().includes(q)) : items;
+    const q = nome.trim();
+    const qLower = q.toLowerCase();
+    const cpfDigits = q.replace(/\D/g, "");
+    const filtrados = q
+      ? items.filter((c) => {
+          if ((c.nome ?? "").toLowerCase().includes(qLower)) return true;
+          if (cpfDigits.length >= 3) {
+            const cCpf = (c.cpf ?? "").replace(/\D/g, "");
+            return cCpf.includes(cpfDigits);
+          }
+          return false;
+        })
+      : items;
     return ordenarAtivoDepoisAlfabetico(filtrados, {
       ativoDe: (c) => clienteOperacionalAtivo(c, contratosAtivos),
       rotuloDe: (c) => c.nome ?? "",
@@ -110,7 +121,7 @@ export function ClientesListSection() {
       <ListToolbar addTo="/clientes/novo">
         <input
           className="input"
-          placeholder="Filtrar nome"
+          placeholder="CPF / nome"
           value={nome}
           onChange={(e) => setNome(e.target.value)}
         />

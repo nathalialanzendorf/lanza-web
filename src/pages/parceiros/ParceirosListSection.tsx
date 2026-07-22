@@ -111,9 +111,10 @@ export function ParceirosListSection() {
       <ListToolbar addTo="/parceiros/novo">
         <input
           className="input"
-          placeholder="Filtrar nome"
+          placeholder="Nome"
           value={nome}
           onChange={(e) => setNome(e.target.value)}
+          aria-label="Buscar parceiro"
         />
         {!loading ? (
           <span className="badge badge--muted">

@@ -131,7 +131,12 @@ export function VeiculosListSection() {
           </label>
           <label className="field">
             <span className="field__label">Parceiro</span>
-            <ParceiroSelect value={parceiroId} onChange={setParceiroId} variant="filtro" />
+            <ParceiroSelect
+              value={parceiroId}
+              onChange={setParceiroId}
+              variant="filtro"
+              className="input"
+            />
           </label>
         </div>
         {!query.isLoading ? (
