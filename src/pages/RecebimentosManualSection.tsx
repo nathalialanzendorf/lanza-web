@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { DataTable } from "@/components/DataTable";
 import { Field, FormCard } from "@/components/FormCard";
 import { DateInput } from "@/components/DateInput";
@@ -10,10 +11,11 @@ import { Toggle } from "@/components/Toggle";
 import { useDespesasCliente } from "@/api/hooks";
 import { lanzaApi } from "@/api/endpoints";
 import { LanzaApiError } from "@/api/client";
-import { FlashError } from "@/context/ScreenFlashContext";
+import { FlashError, FlashSuccess } from "@/context/ScreenFlashContext";
 import type { LinhaPlanoBaixa, PlanoBaixa, ClienteDespesa } from "@/api/types";
 import { formatBrl, formatValorInput, parseValorInput } from "@/lib/format";
 import { despesaElegivelBaixaCliente } from "@/lib/despesaClienteStatus";
+import { isEntityUuid } from "@/lib/uuid";
 
 const ROTULO_TIPO_BAIXA: Record<NonNullable<PlanoBaixa["tipoBaixa"]>, string> = {
   integral: "Baixa integral",
@@ -49,6 +51,7 @@ function formatPlacaFromCompact(pk: string): string {
 }
 
 export function RecebimentosManualSection() {
+  const qc = useQueryClient();
   const [searchParams] = useSearchParams();
   const clienteIdUrl = searchParams.get("clienteId")?.trim() || "";
   const valorUrl = searchParams.get("valor")?.trim() || "";
@@ -65,6 +68,7 @@ export function RecebimentosManualSection() {
   const [linhasSel, setLinhasSel] = useState<Set<number>>(new Set());
   const [loadingExec, setLoadingExec] = useState(false);
   const [execError, setExecError] = useState<string | null>(null);
+  const [execSuccess, setExecSuccess] = useState<string | null>(null);
   const [execResult, setExecResult] = useState<unknown>(null);
 
   const clienteSelecionado = clienteId.trim();
@@ -149,6 +153,7 @@ export function RecebimentosManualSection() {
     setDespesaId(id);
     setPlano(null);
     setExecResult(null);
+    setExecSuccess(null);
     if (!id) {
       setValor("");
       return;
@@ -165,8 +170,17 @@ export function RecebimentosManualSection() {
     return bruta || null;
   }
 
+  function escopoVeiculoDespesa(d: ClienteDespesa): { veiculoId?: string; placa?: string } | null {
+    const raw = d.veiculoId?.trim();
+    if (raw && isEntityUuid(raw)) return { veiculoId: raw };
+    const placa = d.placa?.trim() || raw;
+    return placa ? { placa } : null;
+  }
+
   function veiculoIdBaixa(): string | null {
-    return despesaRegistro?.veiculoId?.trim() || null;
+    if (!despesaRegistro) return null;
+    const escopo = escopoVeiculoDespesa(despesaRegistro);
+    return escopo?.veiculoId?.trim() || null;
   }
 
   async function montarPlano() {
@@ -180,8 +194,8 @@ export function RecebimentosManualSection() {
       );
       return;
     }
-    const veiculoId = veiculoIdBaixa();
-    if (!veiculoId) {
+    const escopoVeiculo = despesaRegistro ? escopoVeiculoDespesa(despesaRegistro) : null;
+    if (!escopoVeiculo) {
       setPlanoError("A pendência selecionada não tem veículo associado.");
       return;
     }
@@ -205,10 +219,11 @@ export function RecebimentosManualSection() {
     setPlanoError(null);
     setPlano(null);
     setExecResult(null);
+    setExecSuccess(null);
     try {
       const r = await lanzaApi.montarPlanoRecebimento({
         clienteId: clienteId.trim(),
-        veiculoId,
+        ...escopoVeiculo,
         despesaId: despesaSel.id,
         valor: valorNum,
         dataBr: dataBr.trim(),
@@ -242,10 +257,31 @@ export function RecebimentosManualSection() {
     if (!plano) return;
     setLoadingExec(true);
     setExecError(null);
+    setExecSuccess(null);
     try {
       const linhas = plano.linhas.filter((l) => linhasSel.has(l.num));
-      const r = await lanzaApi.executarRecebimento({ linhas, syncRastreame: false });
+      const escopoVeiculoId =
+        plano.despesaAlvo?.veiculoId?.trim() ||
+        plano.linhas.map((l) => l.veiculoId?.trim()).find((id) => id && isEntityUuid(id)) ||
+        veiculoIdBaixa() ||
+        undefined;
+      const r = await lanzaApi.executarRecebimento({
+        linhas,
+        clienteId: plano.cliente.id,
+        veiculoId: escopoVeiculoId,
+        despesaId: despesaSel?.id,
+        syncRastreame: false,
+      });
       setExecResult(r.data);
+      const aplicadas =
+        typeof r.data === "object" &&
+        r.data != null &&
+        "aplicadas" in r.data &&
+        typeof (r.data as { aplicadas: unknown }).aplicadas === "number"
+          ? (r.data as { aplicadas: number }).aplicadas
+          : linhas.length;
+      setExecSuccess(`Baixa aplicada com sucesso (${aplicadas} linha${aplicadas === 1 ? "" : "s"}).`);
+      void qc.invalidateQueries({ queryKey: ["despesas-cliente"] });
     } catch (err) {
       setExecError(err instanceof LanzaApiError ? err.message : "Falha ao executar baixa.");
     } finally {
@@ -400,6 +436,7 @@ export function RecebimentosManualSection() {
             {loadingExec ? "A aplicar…" : `Executar baixa (${linhasSel.size})`}
           </button>
           <FlashError message={execError} />
+          <FlashSuccess message={execSuccess} />
         </section>
       ) : null}
 
