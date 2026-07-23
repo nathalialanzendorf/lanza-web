@@ -1,3 +1,12 @@
+export type ContratoVencimentoResumo = {
+  id: string;
+  clienteId?: string | null;
+  clienteNome?: string | null;
+  placa?: string | null;
+  dataFimPrevista?: string | null;
+  veiculo?: { placa?: string | null };
+};
+
 export type Resumo = {
   clientes: { total: number; ativos: number };
   veiculos: { total: number; ativos: number; locados: number; naoLocados: number };
@@ -14,8 +23,8 @@ export type Resumo = {
     semCondutor?: number;
   };
   contratosVencimento?: {
-    vencidos: Contrato[];
-    aVencer: Contrato[];
+    vencidos: ContratoVencimentoResumo[];
+    aVencer: ContratoVencimentoResumo[];
   };
   recebimentos?: DashboardRecebimentos;
 };

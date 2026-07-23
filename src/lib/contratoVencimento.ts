@@ -16,7 +16,7 @@ export function hojeIsoBr(): string {
 }
 
 export function dataFimPrevistaContrato(
-  c: Pick<Contrato, "dataFimPrevista" | "dataFim">,
+  c: { dataFimPrevista?: string | null; dataFim?: string | null },
 ): string | null {
   return c.dataFimPrevista?.trim() || c.dataFim?.trim() || null;
 }
@@ -68,7 +68,10 @@ export function rotuloAlertaVencimento(
   return null;
 }
 
-export function rowClassVencimentoContrato(c: Contrato, hojeIso = hojeIsoBr()): string | undefined {
+export function rowClassVencimentoContrato(
+  c: { dataFimPrevista?: string | null; dataFim?: string | null },
+  hojeIso = hojeIsoBr(),
+): string | undefined {
   const alerta = alertaVencimentoContrato(dataFimPrevistaContrato(c), hojeIso);
   if (alerta === "vencido") return "row--vencido";
   if (alerta === "proximo") return "row--proximo-vencer";

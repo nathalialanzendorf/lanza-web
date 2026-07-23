@@ -18,7 +18,7 @@ import {
   rowClassVencimentoContrato,
 } from "@/lib/contratoVencimento";
 import { LanzaApiError } from "@/api/client";
-import type { Contrato, DashboardRecebimentoLinha, DashboardRecebimentos } from "@/api/types";
+import type { ContratoVencimentoResumo, DashboardRecebimentoLinha, DashboardRecebimentos } from "@/api/types";
 
 const RECEBIMENTOS_VAZIO: DashboardRecebimentos = {
   dataReferenciaBr: "—",
@@ -71,6 +71,7 @@ function RecebimentosTable({
   acoesCompactas = false,
   dataReferenciaBr,
   zebraPorCliente = false,
+  emptyMessage = "Nenhum registo para hoje.",
 }: {
   titulo: string;
   linhas: DashboardRecebimentoLinha[];
@@ -87,6 +88,7 @@ function RecebimentosTable({
   acoesCompactas?: boolean;
   dataReferenciaBr?: string;
   zebraPorCliente?: boolean;
+  emptyMessage?: string;
 }) {
   const gruposCliente = zebraPorCliente ? indiceGrupoPorCliente(linhas) : null;
 
@@ -181,7 +183,7 @@ function RecebimentosTable({
         rows={linhas}
         columns={columns}
         keyFn={(l) => l.despesaId ?? `${l.clienteId ?? "—"}-${l.placa}-${l.vencimentoBr ?? ""}`}
-        emptyMessage="Nenhum registo para hoje."
+        emptyMessage={emptyMessage}
         rowClassName={(l) => {
           if (!zebraPorCliente || !gruposCliente) return undefined;
           const key = l.despesaId ?? `${l.clienteId ?? "—"}-${l.placa}-${l.vencimentoBr ?? ""}`;
@@ -201,7 +203,7 @@ function ContratosVencimentoTable({
   vazio,
 }: {
   titulo: string;
-  linhas: Contrato[];
+  linhas: ContratoVencimentoResumo[];
   hojeIso: string;
   vazio: string;
 }) {
@@ -226,8 +228,8 @@ function ContratosVencimentoTable({
           {
             key: "placa",
             header: "Placa",
-            sortValue: (c) => formatPlaca(c.placa ?? c.veiculo?.placa),
-            render: (c) => formatPlaca(c.placa ?? c.veiculo?.placa),
+            sortValue: (c) => formatPlaca(c.placa ?? c.veiculo?.placa ?? undefined),
+            render: (c) => formatPlaca(c.placa ?? c.veiculo?.placa ?? undefined),
           },
           {
             key: "fim",
@@ -413,7 +415,9 @@ export function DashboardPage() {
         </section>
       )}
 
-      {resumo.isLoading ? null : (
+      {resumo.isLoading ? (
+        <p className="field__hint">A carregar recebimentos…</p>
+      ) : (
         <>
           <section className="dashboard-section">
             <header className="dashboard-section__head">
@@ -466,6 +470,7 @@ export function DashboardPage() {
               acoesCompactas
               zebraPorCliente
               dataReferenciaBr={rec.dataReferenciaBr}
+              emptyMessage="Nenhum recebimento em atraso."
               colunasExtra={[
                 {
                   key: "vencimento",
